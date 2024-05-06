@@ -39,35 +39,20 @@
 
 #include <lilv/lilv.h>
 
-extern mlt_consumer consumer_jack_init(mlt_profile profile,
-                                       mlt_service_type type,
-                                       const char *id,
-                                       char *arg);
-
 #ifdef GPL
 #include "plugin_mgr.h"
 #include <ladspa.h>
 
-#ifdef WITH_JACK
-extern mlt_filter filter_jackrack_init(mlt_profile profile,
-                                       mlt_service_type type,
-                                       const char *id,
-                                       char *arg);
-#endif
-extern mlt_filter filter_ladspa_init(mlt_profile profile,
-                                     mlt_service_type type,
-                                     const char *id,
-                                     char *arg);
 extern mlt_filter filter_ladspa2_init(mlt_profile profile,
 				      mlt_service_type type,
 				      const char *id,
 				      char *arg);
-extern mlt_producer producer_ladspa_init(mlt_profile profile,
+extern mlt_producer producer_ladspa2_init(mlt_profile profile,
                                          mlt_service_type type,
                                          const char *id,
                                          char *arg);
 
-plugin_mgr_t *g_jackrack_plugin_mgr = NULL;
+lv2_mgr_t *g_lv2_plugin_mgr = NULL;
 
 static void add_port_to_metadata(mlt_properties p, plugin_desc_t *desc, int j)
 {
@@ -125,24 +110,20 @@ static mlt_properties metadata(mlt_service_type type, const char *id, char *data
                  PATH_MAX,
                  "%s/jackrack/%s",
                  mlt_environment("MLT_DATA"),
-                 //strncmp(id, "lv2.", 4) ? data : "filter_ladspa.yml");
 		 strncmp(id, "lv2.", 4) ? data : "filter_lv2.yml");
     } else {
         snprintf(file,
                  PATH_MAX,
                  "%s/jackrack/%s",
                  mlt_environment("MLT_DATA"),
-                 //strncmp(id, "lv2.", 4) ? data : "producer_ladspa.yml");
 		 strncmp(id, "lv2.", 4) ? data : "producer_lv2.yml");
     }
     mlt_properties result = mlt_properties_parse_yaml(file);
 
 #ifdef GPL
     if (!strncmp(id, "lv2.", 4)) {
-        // Annotate the yaml properties with ladspa control port info.
-        /* plugin_desc_t *desc = plugin_mgr_get_any_desc(g_jackrack_plugin_mgr,
-                                                         strtol(id + 4, NULL, 10)); */
-      plugin_desc_t *desc = plugin_mgr2_get_any_desc(g_jackrack_plugin_mgr, (char *) &id[4]);
+        // Annotate the yaml properties with lv2 control port info.
+      plugin_desc_t *desc = plugin_mgr2_get_any_desc(g_lv2_plugin_mgr, (char *) &id[4]);
 
         if (desc) {
 
@@ -241,9 +222,9 @@ MLT_REPOSITORY
 #ifdef GPL
     GSList *list;
 
-    g_jackrack_plugin_mgr = plugin_mgr2_new();
+    g_lv2_plugin_mgr = plugin_mgr2_new();
 
-    for (list = g_jackrack_plugin_mgr->all_plugins; list; list = g_slist_next(list)) {
+    for (list = g_lv2_plugin_mgr->all_plugins; list; list = g_slist_next(list)) {
 
       plugin_desc_t *desc = (plugin_desc_t *) list->data;
       char *s = NULL;
@@ -262,7 +243,7 @@ MLT_REPOSITORY
 	MLT_REGISTER(mlt_service_filter_type, s, filter_ladspa2_init);
 	MLT_REGISTER_METADATA(mlt_service_filter_type, s, metadata, NULL);
       } else {
-	MLT_REGISTER(mlt_service_producer_type, s, producer_ladspa_init);
+	MLT_REGISTER(mlt_service_producer_type, s, producer_ladspa2_init);
 	MLT_REGISTER_METADATA(mlt_service_producer_type, s, metadata, NULL);
       }
 
@@ -272,21 +253,9 @@ MLT_REPOSITORY
 	}
     }
 
-    mlt_factory_register_for_clean_up(g_jackrack_plugin_mgr, (mlt_destructor) plugin_mgr2_destroy);
+    mlt_factory_register_for_clean_up(g_lv2_plugin_mgr, (mlt_destructor) plugin_mgr2_destroy);
 
-#ifdef WITH_JACK
-    /* MLT_REGISTER(mlt_service_filter_type, "jack", filter_jackrack_init);
-       MLT_REGISTER_METADATA(mlt_service_filter_type, "jack", metadata, "filter_jack.yml");
-       MLT_REGISTER(mlt_service_filter_type, "jackrack", filter_jackrack_init);
-       MLT_REGISTER_METADATA(mlt_service_filter_type, "jackrack", metadata, "filter_jackrack.yml"); */
-#endif
-    /* MLT_REGISTER(mlt_service_filter_type, "ladspa", filter_ladspa_init); */
     MLT_REGISTER(mlt_service_filter_type, "lv2", filter_ladspa2_init);
-    //MLT_REGISTER_METADATA(mlt_service_filter_type, "lv2", metadata, "filter_ladspa.yml");
     MLT_REGISTER_METADATA(mlt_service_filter_type, "lv2", metadata, "filter_lv2.yml");
-#endif
-#ifdef WITH_JACK
-    /* MLT_REGISTER(mlt_service_consumer_type, "jack", consumer_jack_init);
-       MLT_REGISTER_METADATA(mlt_service_consumer_type, "jack", metadata, "consumer_jack.yml"); */
 #endif
 }

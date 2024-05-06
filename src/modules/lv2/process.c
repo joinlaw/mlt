@@ -37,7 +37,7 @@
 #include "process.h"
 #include "lock_free_fifo.h"
 #include "plugin.h"
-#include "jack_rack.h"
+#include "lv2_rack.h"
 #include "framework/mlt_log.h"
 
 #ifndef _

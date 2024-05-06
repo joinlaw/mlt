@@ -53,7 +53,7 @@ typedef struct _jack_rack jack_rack_t;
 
 struct _jack_rack
 {
-  plugin_mgr_t *    plugin_mgr;
+  lv2_mgr_t *    plugin_mgr;
   process_info_t *  procinfo;
   unsigned long     channels;
   GSList *          saved_plugins;

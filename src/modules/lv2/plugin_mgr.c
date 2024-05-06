@@ -90,7 +90,7 @@ plugin_is_valid (const LADSPA_Descriptor * descriptor)
 }
 
 static void
-plugin_mgr_get_object_file_plugins (plugin_mgr_t * plugin_mgr, const char * filename)
+plugin_mgr_get_object_file_plugins (lv2_mgr_t * plugin_mgr, const char * filename)
 {
   const char * dlerr;
   void * dl_handle;
@@ -187,7 +187,7 @@ plugin_mgr_get_object_file_plugins (plugin_mgr_t * plugin_mgr, const char * file
 }
 
 static void
-plugin_mgr2_get_object_file_plugins (plugin_mgr_t * plugin_mgr, const LilvPlugin * plugin)
+plugin_mgr2_get_object_file_plugins (lv2_mgr_t * plugin_mgr, const LilvPlugin * plugin)
 {
   unsigned long plugin_index = 0;
   plugin_desc_t * desc;
@@ -200,7 +200,7 @@ plugin_mgr2_get_object_file_plugins (plugin_mgr_t * plugin_mgr, const LilvPlugin
 
 
 static void
-plugin_mgr_get_dir_plugins (plugin_mgr_t * plugin_mgr, const char * dir)
+plugin_mgr_get_dir_plugins (lv2_mgr_t * plugin_mgr, const char * dir)
 {
   DIR * dir_stream;
   struct dirent * dir_entry;
@@ -260,7 +260,7 @@ plugin_mgr_get_dir_plugins (plugin_mgr_t * plugin_mgr, const char * dir)
 }
 
 static void
-plugin_mgr2_get_dir_plugins (plugin_mgr_t * plugin_mgr, const char * dir)
+plugin_mgr2_get_dir_plugins (lv2_mgr_t * plugin_mgr, const char * dir)
 {
   LILV_FOREACH (plugins, i, plugin_mgr->plugin_list)
     {
@@ -271,7 +271,7 @@ plugin_mgr2_get_dir_plugins (plugin_mgr_t * plugin_mgr, const char * dir)
 
 
 static void
-plugin_mgr_get_path_plugins (plugin_mgr_t * plugin_mgr)
+plugin_mgr_get_path_plugins (lv2_mgr_t * plugin_mgr)
 {
   char * ladspa_path, * dir;
   
@@ -306,7 +306,7 @@ plugin_mgr_get_path_plugins (plugin_mgr_t * plugin_mgr)
 }
 
 static void
-plugin_mgr2_get_path_plugins (plugin_mgr_t * plugin_mgr)
+plugin_mgr2_get_path_plugins (lv2_mgr_t * plugin_mgr)
 {
   char * ladspa_path, * dir = NULL;
   
@@ -351,13 +351,13 @@ plugin_mgr_sort (gconstpointer a, gconstpointer b)
   return strcasecmp (da->name, db->name);
 }
 
-plugin_mgr_t *
+lv2_mgr_t *
 plugin_mgr_new ()
 {
-  plugin_mgr_t * pm;
+  lv2_mgr_t * pm;
   char dirname[PATH_MAX];
 
-  pm = g_malloc (sizeof (plugin_mgr_t));
+  pm = g_malloc (sizeof (lv2_mgr_t));
   pm->all_plugins = NULL;  
   pm->plugins = NULL;
   pm->plugin_count = 0;
@@ -374,13 +374,13 @@ plugin_mgr_new ()
   return pm;
 }
 
-plugin_mgr_t *
+lv2_mgr_t *
 plugin_mgr2_new ()
 {
-  plugin_mgr_t * pm;
+  lv2_mgr_t * pm;
   char dirname[PATH_MAX];
 
-  pm = g_malloc (sizeof (plugin_mgr_t));
+  pm = g_malloc (sizeof (lv2_mgr_t));
   pm->all_plugins = NULL;  
   pm->plugins = NULL;
   pm->plugin_count = 0;
@@ -409,7 +409,7 @@ plugin_mgr2_new ()
 
 
 void
-plugin_mgr_destroy (plugin_mgr_t * plugin_mgr)
+plugin_mgr_destroy (lv2_mgr_t * plugin_mgr)
 {
   GSList * list;
   
@@ -423,7 +423,7 @@ plugin_mgr_destroy (plugin_mgr_t * plugin_mgr)
 }
 
 void
-plugin_mgr2_destroy (plugin_mgr_t * plugin_mgr)
+plugin_mgr2_destroy (lv2_mgr_t * plugin_mgr)
 {
   GSList * list;
   
@@ -438,7 +438,7 @@ plugin_mgr2_destroy (plugin_mgr_t * plugin_mgr)
 }
 
 void
-plugin_mgr_set_plugins (plugin_mgr_t * plugin_mgr, unsigned long rack_channels)
+plugin_mgr_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels)
 {
   GSList * list;
   plugin_desc_t * desc;
@@ -457,7 +457,7 @@ plugin_mgr_set_plugins (plugin_mgr_t * plugin_mgr, unsigned long rack_channels)
 }
 
 void
-plugin_mgr2_set_plugins (plugin_mgr_t * plugin_mgr, unsigned long rack_channels)
+plugin_mgr2_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels)
 {
   GSList * list;
   plugin_desc_t * desc;
@@ -477,7 +477,7 @@ plugin_mgr2_set_plugins (plugin_mgr_t * plugin_mgr, unsigned long rack_channels)
 
 
 static plugin_desc_t *
-plugin_mgr_find_desc (plugin_mgr_t * plugin_mgr, GSList * plugins, unsigned long id)
+plugin_mgr_find_desc (lv2_mgr_t * plugin_mgr, GSList * plugins, unsigned long id)
 {
   GSList * list;
   plugin_desc_t * desc;
@@ -494,7 +494,7 @@ plugin_mgr_find_desc (plugin_mgr_t * plugin_mgr, GSList * plugins, unsigned long
 }
 
 static plugin_desc_t *
-plugin_mgr2_find_desc (plugin_mgr_t * plugin_mgr, GSList * plugins, char *id)
+plugin_mgr2_find_desc (lv2_mgr_t * plugin_mgr, GSList * plugins, char *id)
 {
   GSList * list;
   plugin_desc_t * desc;
@@ -515,25 +515,25 @@ plugin_mgr2_find_desc (plugin_mgr_t * plugin_mgr, GSList * plugins, char *id)
 
 
 plugin_desc_t *
-plugin_mgr_get_desc (plugin_mgr_t * plugin_mgr, unsigned long id)
+plugin_mgr_get_desc (lv2_mgr_t * plugin_mgr, unsigned long id)
 {
   return plugin_mgr_find_desc (plugin_mgr, plugin_mgr->plugins, id);
 }
 
 plugin_desc_t *
-plugin_mgr_get_any_desc (plugin_mgr_t * plugin_mgr, unsigned long id)
+plugin_mgr_get_any_desc (lv2_mgr_t * plugin_mgr, unsigned long id)
 {
   return plugin_mgr_find_desc (plugin_mgr, plugin_mgr->all_plugins, id);
 }
 
 plugin_desc_t *
-plugin_mgr2_get_desc (plugin_mgr_t * plugin_mgr, char *id)
+plugin_mgr2_get_desc (lv2_mgr_t * plugin_mgr, char *id)
 {
   return plugin_mgr2_find_desc (plugin_mgr, plugin_mgr->plugins, id);
 }
 
 plugin_desc_t *
-plugin_mgr2_get_any_desc (plugin_mgr_t * plugin_mgr, char *id)
+plugin_mgr2_get_any_desc (lv2_mgr_t * plugin_mgr, char *id)
 {
   return plugin_mgr2_find_desc (plugin_mgr, plugin_mgr->all_plugins, id);
 }

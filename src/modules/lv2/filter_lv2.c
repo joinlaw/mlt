@@ -30,7 +30,7 @@
 #include <pthread.h>
 #include <string.h>
 
-#include "jack_rack.h"
+#include "lv2_rack.h"
 
 #define BUFFER_LEN (10000)
 #define MAX_SAMPLE_COUNT (4096)
@@ -216,7 +216,7 @@ static int ladspa_get_audio(mlt_frame frame,
                 output_buffers[j] = input_buffers[j] = (LADSPA_Data *) *buffer + j * (*samples)
                                                        + samples_offset;
             sample_count = MIN(*samples - samples_offset, MAX_SAMPLE_COUNT);
-            // Do LADSPA processing
+            // Do LV2 processing
             error = process_ladspa(jackrack->procinfo, sample_count, input_buffers, output_buffers);
             samples_offset += MAX_SAMPLE_COUNT;
         }

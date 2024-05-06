@@ -32,7 +32,7 @@
 #include <glib.h>
 
 #include "plugin.h"
-#include "jack_rack.h"
+#include "lv2_rack.h"
 #include "process.h"
 #include "framework/mlt_log.h"
 
@@ -863,7 +863,7 @@ void
 plugin_destroy (plugin2_t * plugin)
 {
   unsigned long i, j;
-  int err;
+  int err = 0;
 
   /* destroy holders */
   for (i = 0; i < plugin->copies; i++)
