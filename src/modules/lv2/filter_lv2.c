@@ -112,7 +112,7 @@ static jack_rack_t *initialise_jack_rack2(mlt_properties properties, int channel
 /** Get the audio.
 */
 
-static int ladspa_get_audio(mlt_frame frame,
+static int ladspa2_get_audio(mlt_frame frame,
                             void **buffer,
                             mlt_audio_format *format,
                             int *frequency,
@@ -159,6 +159,7 @@ static int ladspa_get_audio(mlt_frame frame,
     if (jackrack && jackrack->procinfo && jackrack->procinfo->chain
         && strara) {
 
+
         plugin2_t *plugin = jackrack->procinfo->chain;
         LADSPA_Data value;
         int i, c;
@@ -187,7 +188,9 @@ static int ladspa_get_audio(mlt_frame frame,
             // Apply the control port values
             char key[20];
 	    value = plugin->def_values[plugin->desc->control_port_indicies[i]];
-            snprintf(key, sizeof(key), "%d", i);
+            /* snprintf(key, sizeof(key), "%d", i); */
+	    snprintf(key, sizeof(key), "%d", (int) plugin->desc->control_port_indicies[i]);
+
             if (mlt_properties_get(filter_properties, key))
                 value = mlt_properties_anim_get_double(filter_properties, key, position, length);
             for (c = 0; c < plugin->copies; c++)
@@ -195,6 +198,7 @@ static int ladspa_get_audio(mlt_frame frame,
 		plugin->holders[c].control_memory[i] = value;
 	      }
         }
+
         plugin->wet_dry_enabled = mlt_properties_get(filter_properties, "wetness") != NULL;
         if (plugin->wet_dry_enabled) {
             value = mlt_properties_anim_get_double(filter_properties, "wetness", position, length);
@@ -218,6 +222,7 @@ static int ladspa_get_audio(mlt_frame frame,
             sample_count = MIN(*samples - samples_offset, MAX_SAMPLE_COUNT);
             // Do LV2 processing
             error = process_ladspa(jackrack->procinfo, sample_count, input_buffers, output_buffers);
+
             samples_offset += MAX_SAMPLE_COUNT;
         }
 
@@ -249,7 +254,7 @@ static mlt_frame filter_process(mlt_filter this, mlt_frame frame)
 {
     if (mlt_frame_is_test_audio(frame) == 0) {
         mlt_frame_push_audio(frame, this);
-        mlt_frame_push_audio(frame, ladspa_get_audio);
+        mlt_frame_push_audio(frame, ladspa2_get_audio);
     }
 
     return frame;

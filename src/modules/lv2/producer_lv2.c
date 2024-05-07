@@ -111,7 +111,9 @@ static int producer2_get_audio(mlt_frame frame,
                 // Apply the control port values
                 char key[20];
 		value = plugin->def_values[plugin->desc->control_port_indicies[index]];
-                snprintf(key, sizeof(key), "%d", index);
+                //snprintf(key, sizeof(key), "%d", index);
+		snprintf(key, sizeof(key), "%d", (int) plugin->desc->control_port_indicies[index]);
+
                 if (mlt_properties_get(producer_properties, key))
                     value = mlt_properties_anim_get_double(producer_properties,
                                                            key,
