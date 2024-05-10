@@ -38,6 +38,8 @@
 
 #define CONTROL_FIFO_SIZE   128
 
+extern const LV2_Feature* features[];
+
 #ifdef WITH_JACK
 /* swap over the jack ports in two plugins */
 static void
@@ -333,92 +335,6 @@ process_change_plugin (process_info_t * procinfo,
  ************* non RT stuff ***************
  ******************************************/
 
-
-static int
-plugin_open_plugin (plugin_desc_t * desc,
-                    void ** dl_handle_ptr,
-                    const LADSPA_Descriptor ** descriptor_ptr)
-{
-  void * dl_handle;
-  const char * dlerr;
-  LADSPA_Descriptor_Function get_descriptor;
-  
-  /* clear the error report */
-  dlerror ();
-
-  /* open the object file */
-  dl_handle = dlopen (desc->object_file, RTLD_NOW);
-  dlerr = dlerror ();
-  if (!dl_handle || dlerr)
-    {
-      if (!dlerr)
-          dlerr = "unknown error";
-      mlt_log_warning( NULL, "%s: error opening shared object file '%s': %s\n",
-               __FUNCTION__, desc->object_file, dlerr);
-      return 1;
-    }
-
-  
-  /* get the get_descriptor function */
-  get_descriptor = (LADSPA_Descriptor_Function)
-    dlsym (dl_handle, "ladspa_descriptor");
-  dlerr = dlerror();
-  if (dlerr)
-    {
-      if (!dlerr)
-          dlerr = "unknown error";
-      mlt_log_warning( NULL, "%s: error finding descriptor symbol in object file '%s': %s\n",
-               __FUNCTION__, desc->object_file, dlerr);
-      dlclose (dl_handle);
-      return 1;
-    }
-
-#ifdef __APPLE__
-  if (!get_descriptor (desc->index)) {
-    void (*constructor)(void) = dlsym (dl_handle, "_init");
-    if (constructor) constructor();
-  }
-#endif
-
-  *descriptor_ptr = get_descriptor (desc->index);
-  if (!*descriptor_ptr)
-    {
-      mlt_log_warning( NULL, "%s: error finding index %lu in object file '%s'\n",
-              __FUNCTION__, desc->index, desc->object_file);
-      dlclose (dl_handle);
-      return 1;
-    }
-  *dl_handle_ptr = dl_handle;
-  
-  return 0;
-}
-
-static int
-plugin_instantiate (const LADSPA_Descriptor * descriptor,
-                    unsigned long plugin_index,
-                    gint copies,
-                    LADSPA_Handle * instances)
-{
-  gint i;
-  
-  for (i = 0; i < copies; i++)
-    {
-      instances[i] = descriptor->instantiate (descriptor, sample_rate);
-      
-      if (!instances[i])
-        {
-          unsigned long d;
- 
-          for (d = 0; d < i; d++)
-            descriptor->cleanup (instances[d]);
-          
-          return 1;
-        }
-    }
-  
-  return 0;
-}
-
 static int
 plugin2_instantiate (const LilvPlugin *plugin,
 		     unsigned long plugin_index,
@@ -439,7 +355,8 @@ plugin2_instantiate (const LilvPlugin *plugin,
 	http://calf.sourceforge.net/plugins/Crusher
        */
 
-      instances[i] = lilv_plugin_instantiate(plugin, sample_rate, NULL);
+      //instances[i] = lilv_plugin_instantiate(plugin, sample_rate, NULL);
+      instances[i] = lilv_plugin_instantiate(plugin, sample_rate, features);
       
       if (!instances[i])
         {
@@ -590,66 +507,6 @@ static void
 #endif
 
 static void
-plugin_init_holder (plugin_t * plugin,
-                    guint copy,
-                    LADSPA_Handle instance,
-                    jack_rack_t * jack_rack)
-{
-  unsigned long i;
-  plugin_desc_t * desc;
-  ladspa_holder_t * holder;
-  
-  desc = plugin->desc;
-  holder = plugin->holders + copy;
-  
-  holder->instance = instance;
-  
-  if (desc->control_port_count > 0)
-    {
-      holder->ui_control_fifos    = g_malloc (sizeof (lff_t) * desc->control_port_count);
-      holder->control_memory = g_malloc (sizeof (LADSPA_Data) * desc->control_port_count);
-    }
-  else
-    {
-      holder->ui_control_fifos  = NULL;
-      holder->control_memory = NULL;
-    }
-  
-  for (i = 0; i < desc->control_port_count; i++)
-    {
-      lff_init (holder->ui_control_fifos + i, CONTROL_FIFO_SIZE, sizeof (LADSPA_Data));
-      holder->control_memory[i] =
-        plugin_desc_get_default_control_value (desc, desc->control_port_indicies[i], sample_rate);        
-      
-      plugin->descriptor->
-        connect_port (instance, desc->control_port_indicies[i], holder->control_memory + i);
-    }
-  
-  if (desc->status_port_count > 0)
-    {
-      holder->status_memory = g_malloc (sizeof (LADSPA_Data) * desc->status_port_count);
-    }
-  else
-    {
-      holder->status_memory = NULL;
-    }
-
-  for (i = 0; i < desc->status_port_count; i++)
-    {
-      plugin->descriptor->
-        connect_port (instance, desc->status_port_indicies[i], holder->status_memory + i);
-    }
-  
-#ifdef WITH_JACK
-  if (jack_rack->procinfo->jack_client && plugin->desc->aux_channels > 0)
-    plugin_create_aux_ports (plugin, copy, jack_rack);
-#endif
-  
-  if (plugin->descriptor->activate)
-    plugin->descriptor->activate (instance);
-}
-
-static void
 plugin2_init_holder (const plugin2_t   *plugin,
                     guint         copy,
                     const LilvInstance *instance,
@@ -718,67 +575,6 @@ plugin2_init_holder (const plugin2_t   *plugin,
 #endif
 
   lilv_instance_activate(instance);
-}
-
-plugin_t *
-plugin_new (plugin_desc_t * desc, jack_rack_t * jack_rack)
-{
-  void * dl_handle;
-  const LADSPA_Descriptor * descriptor;
-  LADSPA_Handle * instances;
-  gint copies;
-  unsigned long i;
-  int err;
-  plugin_t * plugin;
-  
-  /* open the plugin */
-  err = plugin_open_plugin (desc, &dl_handle, &descriptor);
-  if (err)
-    return NULL;
-
-  /* create the instances */
-  copies = plugin_desc_get_copies (desc, jack_rack->channels);
-  instances = g_malloc (sizeof (LADSPA_Handle) * copies);
-
-  err = plugin_instantiate (descriptor, desc->index, copies, instances);
-  if (err)
-    {
-      g_free (instances);
-      dlclose (dl_handle);
-      return NULL;
-    }
-  
-
-  plugin = g_malloc (sizeof (plugin_t));
-  
-  plugin->descriptor = descriptor;
-  plugin->dl_handle = dl_handle;
-  plugin->desc = desc;
-  plugin->copies = copies;
-  plugin->enabled = FALSE;
-  plugin->next = NULL;
-  plugin->prev = NULL;
-  plugin->wet_dry_enabled = FALSE;
-  plugin->jack_rack = jack_rack;
-  
-  /* create audio memory and wet/dry stuff */
-  plugin->audio_output_memory   = g_malloc (sizeof (LADSPA_Data *) * jack_rack->channels);
-  plugin->wet_dry_fifos  = g_malloc (sizeof (lff_t) * jack_rack->channels);
-  plugin->wet_dry_values = g_malloc (sizeof (LADSPA_Data) * jack_rack->channels);
-  
-  for (i = 0; i < jack_rack->channels; i++)
-    {
-      plugin->audio_output_memory[i] = g_malloc (sizeof (LADSPA_Data) * buffer_size);
-      lff_init (plugin->wet_dry_fifos + i, CONTROL_FIFO_SIZE, sizeof (LADSPA_Data));
-      plugin->wet_dry_values[i] = 1.0;
-    }
-  
-  /* create holders and fill them out */
-  plugin->holders = g_malloc (sizeof (ladspa_holder_t) * copies);
-  for (i = 0; i < copies; i++)
-    plugin_init_holder (plugin, i, instances[i], jack_rack);
-  
-  return plugin;
 }
 
 plugin2_t *

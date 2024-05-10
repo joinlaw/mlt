@@ -54,9 +54,6 @@ struct _lv2_mgr
   LilvWorld *lv2_world;
   LilvPlugins *plugin_list;
 
-  LilvNode *doap_name;
-  /* LilvNode *hard_rt_capable; */
-
   GSList * all_plugins; 	/* this contain instances of plugin_desc_t */
 
   GSList * plugins;

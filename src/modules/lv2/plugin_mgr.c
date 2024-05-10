@@ -53,17 +53,82 @@
 #include <lv2/resize-port/resize-port.h>
 #include <lv2/ui/ui.h>
 #include <lv2/worker/worker.h>
+#include <lv2/options/options.h>
+#include "lv2/buf-size/buf-size.h"
+#include "lv2/parameters/parameters.h"
 
-/* extern LilvNode *input_class;
-   extern LilvNode *output_class;
-   extern LilvNode *audio_class;
-   extern LilvNode *control_class; */
+typedef struct {
+  char** uris;
+  size_t n_uris;
+} URITable;
 
 LilvNode *lv2_input_class;
 LilvNode *lv2_output_class;
 LilvNode *lv2_audio_class;
 LilvNode *lv2_control_class;
 LilvNode *lv2_atom_class;
+
+static LV2_URID urid_atom_Float;
+static LV2_URID urid_atom_Int;
+static LV2_URID urid_bufsz_minBlockLength;
+static LV2_URID urid_bufsz_maxBlockLength;
+static LV2_URID urid_param_sampleRate;
+static LV2_URID urid_bufsz_sequenceSize;
+static LV2_URID urid_ui_updateRate;
+static LV2_URID urid_ui_scaleFactor;
+
+static URITable uri_table;
+
+static float    lv2opt_sample_rate     = 48000.000000;
+static uint32_t lv2opt_block_length    = 4096;
+static size_t   lv2opt_midi_buf_size   = 32768;
+static float    lv2opt_ui_update_hz    = 60.000000;
+static float    lv2opt_ui_scale_factor = 1.000000;
+
+static void
+uri_table_init(URITable* table)
+{
+  table->uris   = NULL;
+  table->n_uris = 0;
+}
+
+static LV2_URID
+uri_table_map(LV2_URID_Map_Handle handle, const char* uri)
+{
+  URITable* table = (URITable*)handle;
+  for (size_t i = 0; i < table->n_uris; ++i) {
+    if (!strcmp(table->uris[i], uri)) {
+      return i + 1;
+    }
+  }
+
+  const size_t len = strlen(uri);
+  table->uris = (char**)realloc(table->uris, ++table->n_uris * sizeof(char*));
+  table->uris[table->n_uris - 1] = (char*)malloc(len + 1);
+  memcpy(table->uris[table->n_uris - 1], uri, len + 1);
+  return table->n_uris;
+}
+
+static const char*
+uri_table_unmap(LV2_URID_Map_Handle handle, LV2_URID urid)
+{
+  URITable* table = (URITable*)handle;
+  if (urid > 0 && urid <= table->n_uris) {
+    return table->uris[urid - 1];
+  }
+  return NULL;
+}
+
+
+static LV2_URID_Map       map           = {&uri_table, uri_table_map};
+static LV2_Feature        map_feature   = {LV2_URID_MAP_URI, &map};
+static LV2_URID_Unmap     unmap         = {&uri_table, uri_table_unmap};
+static LV2_Feature        unmap_feature = {LV2_URID_UNMAP_URI, &unmap};
+static LV2_Feature        boundedBlockLength_feature = {LV2_BUF_SIZE__boundedBlockLength, NULL};
+static LV2_Options_Option lv2_options_features[7];
+static LV2_Feature options_feature = {LV2_OPTIONS__options, (void *) lv2_options_features};
+
+const LV2_Feature* features[]    = {&map_feature, &unmap_feature, &options_feature, &boundedBlockLength_feature, NULL};
 
 static gboolean
 plugin_is_valid (const LADSPA_Descriptor * descriptor)
@@ -388,12 +453,74 @@ plugin_mgr2_new ()
   pm->lv2_world = lilv_world_new ();
   lilv_world_load_all (pm->lv2_world);
   pm->plugin_list = (LilvPlugins *) lilv_world_get_all_plugins (pm->lv2_world);
-  pm->doap_name  = lilv_new_uri(pm->lv2_world, "http://usefulinc.com/ns/doap#name");
+
   lv2_input_class  = lilv_new_uri(pm->lv2_world, LILV_URI_INPUT_PORT);
   lv2_output_class  = lilv_new_uri(pm->lv2_world, LILV_URI_OUTPUT_PORT);
   lv2_audio_class  = lilv_new_uri(pm->lv2_world, LILV_URI_AUDIO_PORT);
   lv2_control_class  = lilv_new_uri(pm->lv2_world, LILV_URI_CONTROL_PORT);
   lv2_atom_class = lilv_new_uri(pm->lv2_world, LV2_ATOM__AtomPort);
+
+  uri_table_init(&uri_table);
+
+  urid_atom_Float           = uri_table_map(&uri_table, LV2_ATOM__Float);
+  urid_atom_Int             = uri_table_map(&uri_table, LV2_ATOM__Int);
+  urid_bufsz_minBlockLength = uri_table_map(&uri_table, LV2_BUF_SIZE__minBlockLength);
+  urid_bufsz_maxBlockLength = uri_table_map(&uri_table, LV2_BUF_SIZE__maxBlockLength);
+  urid_bufsz_sequenceSize   = uri_table_map(&uri_table, LV2_BUF_SIZE__sequenceSize);
+  urid_ui_updateRate        = uri_table_map(&uri_table, LV2_UI__updateRate);
+  urid_ui_scaleFactor       = uri_table_map(&uri_table, LV2_UI__scaleFactor);
+  urid_param_sampleRate     = uri_table_map(&uri_table, LV2_PARAMETERS__sampleRate);
+
+
+
+  lv2_options_features[0].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[0].subject = 0;
+  lv2_options_features[0].key     = urid_param_sampleRate;
+  lv2_options_features[0].size    = sizeof(float);
+  lv2_options_features[0].type    = urid_atom_Float;
+  lv2_options_features[0].value   = &lv2opt_sample_rate;
+
+  lv2_options_features[1].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[1].subject = 0;
+  lv2_options_features[1].key     = urid_bufsz_minBlockLength;
+  lv2_options_features[1].size    = sizeof(int32_t);
+  lv2_options_features[1].type    = urid_atom_Int;
+  lv2_options_features[1].value   = &lv2opt_block_length;
+
+  lv2_options_features[2].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[2].subject = 0;
+  lv2_options_features[2].key     = urid_bufsz_maxBlockLength;
+  lv2_options_features[2].size    = sizeof(int32_t);
+  lv2_options_features[2].type    = urid_atom_Int;
+  lv2_options_features[2].value   = &lv2opt_block_length;
+
+  lv2_options_features[3].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[3].subject = 0;
+  lv2_options_features[3].key     = urid_bufsz_sequenceSize;
+  lv2_options_features[3].size    = sizeof(int32_t);
+  lv2_options_features[3].type    = urid_atom_Int;
+  lv2_options_features[3].value   = &lv2opt_midi_buf_size;
+
+  lv2_options_features[4].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[4].subject = 0;
+  lv2_options_features[4].key     = urid_ui_updateRate;
+  lv2_options_features[4].size    = sizeof(float);
+  lv2_options_features[4].type    = urid_atom_Float;
+  lv2_options_features[4].value   = &lv2opt_ui_update_hz;
+
+  lv2_options_features[5].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[5].subject = 0;
+  lv2_options_features[5].key     = urid_ui_scaleFactor;
+  lv2_options_features[5].size    = sizeof(float);
+  lv2_options_features[5].type    = urid_atom_Float;
+  lv2_options_features[5].value   = &lv2opt_ui_scale_factor;
+
+  lv2_options_features[6].context = LV2_OPTIONS_INSTANCE;
+  lv2_options_features[6].subject = 0;
+  lv2_options_features[6].key     = 0;
+  lv2_options_features[6].size    = 0;
+  lv2_options_features[6].type    = 0;
+  lv2_options_features[6].value   = NULL;
 
   snprintf (dirname, PATH_MAX, "%s/jackrack/blacklist.txt", mlt_environment ("MLT_DATA"));
   pm->blacklist = mlt_properties_load (dirname);
