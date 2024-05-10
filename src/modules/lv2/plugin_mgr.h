@@ -63,17 +63,12 @@ struct _lv2_mgr
 
 struct _ui;
 
-lv2_mgr_t * plugin_mgr_new ();
 lv2_mgr_t * plugin_mgr2_new ();
-void           plugin_mgr_destroy (lv2_mgr_t * plugin_mgr);
 void           plugin_mgr2_destroy (lv2_mgr_t * plugin_mgr);
 
-void plugin_mgr_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels);
 void plugin_mgr2_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels);
 
-plugin_desc_t * plugin_mgr_get_desc (lv2_mgr_t * plugin_mgr, unsigned long id);
 plugin_desc_t * plugin_mgr2_get_desc (lv2_mgr_t * plugin_mgr, char *id);
-plugin_desc_t * plugin_mgr_get_any_desc (lv2_mgr_t * plugin_mgr, unsigned long id);
 plugin_desc_t * plugin_mgr2_get_any_desc (lv2_mgr_t * plugin_mgr, char *id);
 
 #endif /* __JR_PLUGIN_MANAGER_H__ */

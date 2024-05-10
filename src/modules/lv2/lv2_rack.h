@@ -59,7 +59,6 @@ struct _jack_rack
   GSList *          saved_plugins;
 };
 
-jack_rack_t * jack_rack_new     (const char * client_name, unsigned long channels);
 jack_rack_t * jack_rack2_new     (const char * client_name, unsigned long channels);
 void          jack_rack_destroy (jack_rack_t * jack_rack);
 
@@ -67,7 +66,6 @@ int jack_rack_open_file (jack_rack_t * jack_rack, const char * filename);
 void jack_rack_add_plugin (jack_rack_t * jack_rack, plugin2_t * plugin);
 void jack_rack_add_saved_plugin (jack_rack_t * jack_rack, struct _saved_plugin * saved_plugin);
 
-plugin2_t * jack_rack_instantiate_plugin (jack_rack_t * jack_rack, plugin_desc_t * desc);
 plugin2_t * jack_rack2_instantiate_plugin (jack_rack_t * jack_rack, plugin_desc_t * desc);
 
 #endif /* __JR_JACK_RACK_H__ */

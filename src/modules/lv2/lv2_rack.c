@@ -46,25 +46,6 @@
 extern lv2_mgr_t *g_lv2_plugin_mgr;
 
 jack_rack_t *
-jack_rack_new (const char * client_name, unsigned long channels)
-{
-  jack_rack_t *rack;
-
-  rack = g_malloc (sizeof (jack_rack_t));
-  rack->saved_plugins  = NULL;
-  rack->channels       = channels;
-  rack->procinfo = process_info_new (client_name, channels, FALSE, FALSE);
-  if (!rack->procinfo) {
-    g_free (rack);
-    return NULL;
-  }
-  rack->plugin_mgr = g_lv2_plugin_mgr;
-  plugin_mgr_set_plugins (rack->plugin_mgr, channels);
-
-  return rack;
-}
-
-jack_rack_t *
 jack_rack2_new (const char * client_name, unsigned long channels)
 {
   jack_rack_t *rack;
@@ -90,32 +71,10 @@ jack_rack_destroy (jack_rack_t * jack_rack)
 {
   process_quit (jack_rack->procinfo);
   // plugin_mgr is shared and global now, so we do not destroy it with each instance
-  // plugin_mgr_destroy (jack_rack->plugin_mgr);
+  // plugin_mgr2_destroy (jack_rack->plugin_mgr);
   process_info_destroy (jack_rack->procinfo);
   g_slist_free (jack_rack->saved_plugins);
   g_free (jack_rack);
-}
-
-plugin2_t *
-jack_rack_instantiate_plugin (jack_rack_t * jack_rack, plugin_desc_t * desc)
-{
-  plugin2_t * plugin;
-  
-  /* check whether or not the plugin is RT capablex and confirm with the user if it isn't */
-  if (!LADSPA_IS_HARD_RT_CAPABLE(desc->properties)) {
-    mlt_log_info( NULL, "Plugin not RT capable. The plugin '%s' does not describe itself as being capable of real-time operation. You may experience drop outs or jack may even kick us out if you use it.\n",
-               desc->name);
-  }
-
-  /* create the plugin */
-  plugin = plugin2_new (desc, jack_rack);
-
-  if (!plugin) {
-   mlt_log_error( NULL, "Error loading file plugin '%s' from file '%s'\n",
-               desc->name, desc->object_file);
-  }
-  
-  return plugin;
 }
 
 plugin2_t *
@@ -215,7 +174,6 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
   xmlNodePtr node;
   xmlNodePtr sub_node;
   xmlChar *content;
-  unsigned long num;
   unsigned long control = 0;
 #ifdef _WIN32
   xmlFreeFunc xmlFree = NULL;
@@ -227,16 +185,18 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
       if (xmlStrcmp (node->name, _x("id")) == 0)
         {
           content = xmlNodeGetContent (node);
-          num = strtoul (_s(content), NULL, 10);
-          xmlFree (content);
 
-          desc = plugin_mgr_get_any_desc (jack_rack->plugin_mgr, num);
+          desc = plugin_mgr2_get_any_desc (jack_rack->plugin_mgr, _s(content));
+
           if (!desc)
             {
-              mlt_log_verbose( NULL, _("The file '%s' contains an unknown plugin with ID '%ld'; skipping\n"), filename, num);
+              mlt_log_verbose( NULL, _("The file '%s' contains an unknown plugin with ID '%s'; skipping\n"), filename, _s(content));
+	      xmlFree (content);
               return;
             }
-          
+
+	  xmlFree (content);
+
           settings = settings_new (desc, saved_rack->channels, saved_rack->sample_rate);
         }
       else if (xmlStrcmp (node->name, _x("enabled")) == 0)

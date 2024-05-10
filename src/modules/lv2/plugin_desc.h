@@ -81,9 +81,6 @@ struct _plugin_desc
 };
 
 plugin_desc_t * plugin_desc_new ();
-plugin_desc_t * plugin_desc_new_with_descriptor (const char * object_file,
-                                                 unsigned long index,
-                                                 const LADSPA_Descriptor * descriptor);
 plugin_desc_t * plugin_desc2_new_with_descriptor (const char * object_file,
 						  unsigned long index,
 						  const LilvPlugin * plugin);

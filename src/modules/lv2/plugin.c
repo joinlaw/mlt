@@ -57,35 +57,9 @@ plugin_swap_aux_ports (plugin2_t * plugin, plugin2_t * other)
 }
 #endif
 
-/** connect up the ladspa instance's input buffers to the previous
+/** connect up the LV2 instance's input buffers to the previous
     plugin's audio memory.  make sure to check that plugin->prev
     exists. */
-void
-plugin_connect_input_ports (plugin2_t * plugin, LADSPA_Data ** inputs)
-{
-  gint copy;
-  unsigned long channel;
-  unsigned long rack_channel;
-
-  if (!plugin || !inputs)
-    return;
-
-  rack_channel = 0;
-  for (copy = 0; copy < plugin->copies; copy++)
-    {
-      for (channel = 0; channel < plugin->desc->channels; channel++)
-        {
-          plugin->descriptor->
-            connect_port (plugin->holders[copy].instance,
-                          plugin->desc->audio_input_port_indicies[channel],
-                          inputs[rack_channel]);
-          rack_channel++;
-        }
-    }
-  
-  plugin->audio_input_memory = inputs;
-}
-
 void
 plugin2_connect_input_ports (plugin2_t * plugin, LADSPA_Data ** inputs)
 {
@@ -113,30 +87,6 @@ plugin2_connect_input_ports (plugin2_t * plugin, LADSPA_Data ** inputs)
 
 
 /** connect up a plugin's output ports to its own audio_output_memory output memory */
-void
-plugin_connect_output_ports (plugin2_t * plugin)
-{
-  gint copy;
-  unsigned long channel;
-  unsigned long rack_channel = 0;
-
-  if (!plugin)
-    return;
-
-
-  for (copy = 0; copy < plugin->copies; copy++)
-    {
-      for (channel = 0; channel < plugin->desc->channels; channel++)
-        {
-          plugin->descriptor->
-            connect_port (plugin->holders[copy].instance,
-                          plugin->desc->audio_output_port_indicies[channel],
-                          plugin->audio_output_memory[rack_channel]);
-          rack_channel++;
-        }
-    }
-}
-
 void
 plugin2_connect_output_ports (plugin2_t * plugin)
 {
@@ -209,14 +159,14 @@ process_remove_plugin (process_info_t * procinfo, plugin2_t *plugin)
 
 /** enable/disable a plugin */
 void
-process_ablise_plugin (process_info_t * procinfo, plugin_t *plugin, gboolean enable)
+process_ablise_plugin (process_info_t * procinfo, plugin2_t *plugin, gboolean enable)
 {
   plugin->enabled = enable;
 }
 
 /** enable/disable a plugin */
 void
-process_ablise_plugin_wet_dry (process_info_t * procinfo, plugin_t *plugin, gboolean enable)
+process_ablise_plugin_wet_dry (process_info_t * procinfo, plugin2_t *plugin, gboolean enable)
 {
   plugin->wet_dry_enabled = enable;
 }
@@ -373,136 +323,68 @@ plugin2_instantiate (const LilvPlugin *plugin,
 #ifdef WITH_JACK
 
 static void
-plugin_create_aux_ports (plugin_t * plugin, guint copy, jack_rack_t * jack_rack)
+plugin2_create_aux_ports (plugin2_t * plugin, guint copy, jack_rack_t * jack_rack)
 {
   plugin_desc_t * desc;
-//  plugin_slot_t * slot;
   unsigned long aux_channel = 1;
   unsigned long plugin_index = 1;
   unsigned long i;
   char port_name[64];
   char * plugin_name;
   char * ptr;
-//  GList * list;
-  ladspa_holder_t * holder;
-  
+  ladspa2_holder_t * holder;
+     
   desc = plugin->desc;
   holder = plugin->holders + copy;
-  
+     
   holder->aux_ports = g_malloc (sizeof (jack_port_t *) * desc->aux_channels);
-  
+     
   /* make the plugin name jack worthy */
   ptr = plugin_name = g_strndup (plugin->desc->name, 7);
   while (*ptr != '\0')
     {
       if (*ptr == ' ')
-        *ptr = '_';
+	*ptr = '_';
       else
-        *ptr = tolower (*ptr);
-      
+	*ptr = tolower (*ptr);
+         
       ptr++;
     }
-
-/*	
-  for (list = jack_rack->slots; list; list = g_list_next (list))
-    {
-      slot = (plugin_slot_t *) list->data;
-      
-      if (slot->plugin->desc->id == plugin->desc->id)
-        plugin_index++;
-    }
-*/
-      
+   
+  /*	
+	for (list = jack_rack->slots; list; list = g_list_next (list))
+	{
+	slot = (plugin_slot_t *) list->data;
+         
+	if (slot->plugin->desc->id == plugin->desc->id)
+	plugin_index++;
+	}
+  */
+         
   for (i = 0; i < desc->aux_channels; i++, aux_channel++)
     {
       sprintf (port_name, "%s_%ld-%d_%c%ld",
-               plugin_name,
-               plugin_index,
-               copy + 1,
-               desc->aux_are_input ? 'i' : 'o',
-               aux_channel);
-      
+	       plugin_name,
+	       plugin_index,
+	       copy + 1,
+	       desc->aux_are_input ? 'i' : 'o',
+	       aux_channel);
+         
       holder->aux_ports[i] =
-        jack_port_register (jack_rack->procinfo->jack_client,
-                            port_name,
-                            JACK_DEFAULT_AUDIO_TYPE,
-                            desc->aux_are_input ? JackPortIsInput : JackPortIsOutput,
-                            0);
-      
+	jack_port_register (jack_rack->procinfo->jack_client,
+			    port_name,
+			    JACK_DEFAULT_AUDIO_TYPE,
+			    desc->aux_are_input ? JackPortIsInput : JackPortIsOutput,
+			    0);
+         
       if (!holder->aux_ports[i])
-        {
-          mlt_log_panic( NULL, "Could not register jack port '%s'; aborting\n", port_name);
-        }
+	{
+	  mlt_log_panic( NULL, "Could not register jack port '%s'; aborting\n", port_name);
+	}
     }
-  
+     
   g_free (plugin_name);
 }
-
-static void
-   plugin2_create_aux_ports (plugin2_t * plugin, guint copy, jack_rack_t * jack_rack)
-   {
-     plugin_desc_t * desc;
-   //  plugin_slot_t * slot;
-     unsigned long aux_channel = 1;
-     unsigned long plugin_index = 1;
-     unsigned long i;
-     char port_name[64];
-     char * plugin_name;
-     char * ptr;
-   //  GList * list;
-     ladspa2_holder_t * holder;
-     
-     desc = plugin->desc;
-     holder = plugin->holders + copy;
-     
-     holder->aux_ports = g_malloc (sizeof (jack_port_t *) * desc->aux_channels);
-     
-     /* make the plugin name jack worthy */
-     ptr = plugin_name = g_strndup (plugin->desc->name, 7);
-     while (*ptr != '\0')
-       {
-         if (*ptr == ' ')
-           *ptr = '_';
-         else
-           *ptr = tolower (*ptr);
-         
-         ptr++;
-       }
-   
-   /*	
-     for (list = jack_rack->slots; list; list = g_list_next (list))
-       {
-         slot = (plugin_slot_t *) list->data;
-         
-         if (slot->plugin->desc->id == plugin->desc->id)
-           plugin_index++;
-       }
-   */
-         
-     for (i = 0; i < desc->aux_channels; i++, aux_channel++)
-       {
-         sprintf (port_name, "%s_%ld-%d_%c%ld",
-                  plugin_name,
-                  plugin_index,
-                  copy + 1,
-                  desc->aux_are_input ? 'i' : 'o',
-                  aux_channel);
-         
-         holder->aux_ports[i] =
-           jack_port_register (jack_rack->procinfo->jack_client,
-                               port_name,
-                               JACK_DEFAULT_AUDIO_TYPE,
-                               desc->aux_are_input ? JackPortIsInput : JackPortIsOutput,
-                               0);
-         
-         if (!holder->aux_ports[i])
-           {
-             mlt_log_panic( NULL, "Could not register jack port '%s'; aborting\n", port_name);
-           }
-       }
-     
-     g_free (plugin_name);
-   }
 
 #endif
 
@@ -619,7 +501,6 @@ plugin2_new (plugin_desc_t * desc, jack_rack_t * jack_rack)
 
   err = plugin2_instantiate (plugin->lv2_plugin, desc->index, copies, instances);
 
-
   if (err)
     {
       g_free (instances);
@@ -664,7 +545,7 @@ plugin_destroy (plugin2_t * plugin)
   /* destroy holders */
   for (i = 0; i < plugin->copies; i++)
     {
-      if (plugin->descriptor->deactivate)
+      //if (plugin->descriptor->deactivate)
 	lilv_instance_deactivate(plugin->holders[i].instance);
       
       if (plugin->desc->control_port_count > 0)

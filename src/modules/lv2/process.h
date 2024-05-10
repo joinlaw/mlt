@@ -40,8 +40,6 @@ typedef struct _process_info process_info_t;
 struct _process_info {
 
   /** the plugin instance chain */
-  /* struct _plugin * chain;
-     struct _plugin * chain_end; */
   struct _plugin2 * chain;
   struct _plugin2 * chain_end;
   
