@@ -27,11 +27,11 @@
 #endif
 #include <math.h>
 
-#include "plugin_settings.h"
+#include "lv2_plugin_settings.h"
 
 
 static void
-settings_set_to_default (settings_t * settings, guint32 sample_rate)
+lv2_settings_set_to_default (lv2_settings_t * settings, guint32 sample_rate)
 {
   unsigned long control;
   guint copy;
@@ -39,7 +39,7 @@ settings_set_to_default (settings_t * settings, guint32 sample_rate)
   
   for (control = 0; control < settings->desc->control_port_count; control++)
     {
-      value = plugin_desc_get_default_control_value (settings->desc, control, sample_rate);
+      value = lv2_plugin_desc_get_default_control_value (settings->desc, control, sample_rate);
 
       for (copy = 0; copy < settings->copies; copy++)
         {
@@ -50,15 +50,15 @@ settings_set_to_default (settings_t * settings, guint32 sample_rate)
     }
 }
 
-settings_t *
-settings_new     (plugin_desc_t * desc, unsigned long channels, guint32 sample_rate)
+lv2_settings_t *
+lv2_settings_new     (lv2_plugin_desc_t * desc, unsigned long channels, guint32 sample_rate)
 {
-  settings_t * settings;
+  lv2_settings_t * settings;
   unsigned long channel;
   guint copies;
   
-  settings = g_malloc (sizeof (settings_t));
-  copies = plugin_desc_get_copies (desc, channels);
+  settings = g_malloc (sizeof (lv2_settings_t));
+  copies = lv2_plugin_desc_get_copies (desc, channels);
   
   settings->sample_rate = sample_rate;
   settings->desc = desc;
@@ -84,7 +84,7 @@ settings_new     (plugin_desc_t * desc, unsigned long channels, guint32 sample_r
           settings->control_values[copy] = g_malloc (sizeof (LADSPA_Data) * desc->control_port_count);
         }
       
-      settings_set_to_default (settings, sample_rate);
+      lv2_settings_set_to_default (settings, sample_rate);
     }
   
   /* wet/dry settings */
@@ -95,23 +95,23 @@ settings_new     (plugin_desc_t * desc, unsigned long channels, guint32 sample_r
   return settings;
 }
 
-settings_t *
-settings_dup     (settings_t * other)
+lv2_settings_t *
+lv2_settings_dup     (lv2_settings_t * other)
 {
-  settings_t * settings;
-  plugin_desc_t * desc;
+  lv2_settings_t * settings;
+  lv2_plugin_desc_t * desc;
   unsigned long channel;
   
-  settings = g_malloc (sizeof (settings_t));
+  settings = g_malloc (sizeof (lv2_settings_t));
   
   settings->sample_rate     = other->sample_rate;
   settings->desc            = other->desc;
-  settings->copies          = settings_get_copies (other);
-  settings->channels        = settings_get_channels (other);
-  settings->wet_dry_enabled = settings_get_wet_dry_enabled (other);
-  settings->wet_dry_locked  = settings_get_wet_dry_locked (other);
-  settings->lock_all        = settings_get_lock_all (other);
-  settings->enabled         = settings_get_enabled (other);
+  settings->copies          = lv2_settings_get_copies (other);
+  settings->channels        = lv2_settings_get_channels (other);
+  settings->wet_dry_enabled = lv2_settings_get_wet_dry_enabled (other);
+  settings->wet_dry_locked  = lv2_settings_get_wet_dry_locked (other);
+  settings->lock_all        = lv2_settings_get_lock_all (other);
+  settings->enabled         = lv2_settings_get_enabled (other);
   settings->locks           = NULL;
   settings->control_values  = NULL;
   
@@ -124,7 +124,7 @@ settings_dup     (settings_t * other)
       
       settings->locks = g_malloc (sizeof (gboolean) * desc->control_port_count);
       for (control = 0; control < desc->control_port_count; control++)
-        settings_set_lock (settings, control, settings_get_lock (other, control));
+        lv2_settings_set_lock (settings, control, lv2_settings_get_lock (other, control));
 
       settings->control_values = g_malloc (sizeof (LADSPA_Data *) * settings->copies);
       for (copy = 0; copy < settings->copies; copy++)
@@ -133,20 +133,20 @@ settings_dup     (settings_t * other)
 
           for (control = 0; control < desc->control_port_count; control++)
             {
-              settings->control_values[copy][control] = settings_get_control_value (other, copy, control);
+              settings->control_values[copy][control] = lv2_settings_get_control_value (other, copy, control);
             }
         }
     }
   
   settings->wet_dry_values = g_malloc (sizeof (LADSPA_Data) * settings->channels);
   for (channel = 0; channel < settings->channels; channel++)
-    settings->wet_dry_values[channel] = settings_get_wet_dry_value (other, channel);
+    settings->wet_dry_values[channel] = lv2_settings_get_wet_dry_value (other, channel);
   
   return settings;
 }
 
 void
-settings_destroy (settings_t * settings)
+lv2_settings_destroy (lv2_settings_t * settings)
 {
   if (settings->desc->control_port_count > 0)
     {
@@ -164,7 +164,7 @@ settings_destroy (settings_t * settings)
 }
 
 static void
-settings_set_copies (settings_t * settings, guint copies)
+lv2_settings_set_copies (lv2_settings_t * settings, guint copies)
 {
   guint copy;
   guint last_copy;
@@ -192,7 +192,7 @@ settings_set_copies (settings_t * settings, guint copies)
 }
 
 static void
-settings_set_channels (settings_t * settings, unsigned long channels)
+lv2_settings_set_channels (lv2_settings_t * settings, unsigned long channels)
 {
   unsigned long channel;
   LADSPA_Data last_value;
@@ -211,7 +211,7 @@ settings_set_channels (settings_t * settings, unsigned long channels)
 }
 
 void
-settings_set_sample_rate (settings_t * settings, guint32 sample_rate)
+lv2_settings_set_sample_rate (lv2_settings_t * settings, guint32 sample_rate)
 {
   LADSPA_Data old_sample_rate;
   LADSPA_Data new_sample_rate;
@@ -246,19 +246,19 @@ settings_set_sample_rate (settings_t * settings, guint32 sample_rate)
 }
 
 void
-settings_set_control_value (settings_t * settings, guint copy, unsigned long control_index, LADSPA_Data value)
+lv2_settings_set_control_value (lv2_settings_t * settings, guint copy, unsigned long control_index, LADSPA_Data value)
 {
   g_return_if_fail (settings != NULL);
   g_return_if_fail (control_index < settings->desc->control_port_count);
   
   if (copy >= settings->copies)
-    settings_set_copies (settings, copy + 1);
+    lv2_settings_set_copies (settings, copy + 1);
   
   settings->control_values[copy][control_index] = value;
 }
 
 void
-settings_set_lock          (settings_t * settings, unsigned long control_index, gboolean locked)
+lv2_settings_set_lock          (lv2_settings_t * settings, unsigned long control_index, gboolean locked)
 {
   g_return_if_fail (settings != NULL);
   g_return_if_fail (control_index < settings->desc->control_port_count);
@@ -267,7 +267,7 @@ settings_set_lock          (settings_t * settings, unsigned long control_index, 
 }
 
 void
-settings_set_lock_all (settings_t * settings, gboolean lock_all)
+lv2_settings_set_lock_all (lv2_settings_t * settings, gboolean lock_all)
 {
   g_return_if_fail (settings != NULL);
 
@@ -275,7 +275,7 @@ settings_set_lock_all (settings_t * settings, gboolean lock_all)
 }
 
 void
-settings_set_enabled (settings_t * settings, gboolean enabled)
+lv2_settings_set_enabled (lv2_settings_t * settings, gboolean enabled)
 {
   g_return_if_fail (settings != NULL);
 
@@ -283,7 +283,7 @@ settings_set_enabled (settings_t * settings, gboolean enabled)
 }
 
 void
-settings_set_wet_dry_enabled (settings_t * settings, gboolean enabled)
+lv2_settings_set_wet_dry_enabled (lv2_settings_t * settings, gboolean enabled)
 {
   g_return_if_fail (settings != NULL);
   
@@ -291,7 +291,7 @@ settings_set_wet_dry_enabled (settings_t * settings, gboolean enabled)
 }
 
 void
-settings_set_wet_dry_locked  (settings_t * settings, gboolean locked)
+lv2_settings_set_wet_dry_locked  (lv2_settings_t * settings, gboolean locked)
 {
   g_return_if_fail (settings != NULL);
   
@@ -299,31 +299,31 @@ settings_set_wet_dry_locked  (settings_t * settings, gboolean locked)
 }
 
 void
-settings_set_wet_dry_value   (settings_t * settings, unsigned long channel, LADSPA_Data value)
+lv2_settings_set_wet_dry_value   (lv2_settings_t * settings, unsigned long channel, LADSPA_Data value)
 {
   g_return_if_fail (settings != NULL);
 
   if (channel >= settings->channels)
-    settings_set_channels (settings, channel + 1);
+    lv2_settings_set_channels (settings, channel + 1);
   
   settings->wet_dry_values[channel] = value;
 }
 
 
 LADSPA_Data
-settings_get_control_value (settings_t * settings, guint copy, unsigned long control_index)
+lv2_settings_get_control_value (lv2_settings_t * settings, guint copy, unsigned long control_index)
 {
   g_return_val_if_fail (settings != NULL, NAN);
   g_return_val_if_fail (control_index < settings->desc->control_port_count, NAN);
 
   if (copy >= settings->copies)
-    settings_set_copies (settings, copy - 1);
+    lv2_settings_set_copies (settings, copy - 1);
 
   return settings->control_values[copy][control_index];
 }
 
 gboolean
-settings_get_lock          (const settings_t * settings, unsigned long control_index)
+lv2_settings_get_lock          (const lv2_settings_t * settings, unsigned long control_index)
 {
   g_return_val_if_fail (settings != NULL, FALSE);
   
@@ -331,7 +331,7 @@ settings_get_lock          (const settings_t * settings, unsigned long control_i
 }
 
 gboolean
-settings_get_lock_all      (const settings_t * settings)
+lv2_settings_get_lock_all      (const lv2_settings_t * settings)
 {
   g_return_val_if_fail (settings != NULL, FALSE);
 
@@ -339,7 +339,7 @@ settings_get_lock_all      (const settings_t * settings)
 }
 
 gboolean
-settings_get_enabled      (const settings_t * settings)
+lv2_settings_get_enabled      (const lv2_settings_t * settings)
 {
   g_return_val_if_fail (settings != NULL, FALSE);
   
@@ -347,7 +347,7 @@ settings_get_enabled      (const settings_t * settings)
 }
 
 guint
-settings_get_copies        (const settings_t * settings)
+lv2_settings_get_copies        (const lv2_settings_t * settings)
 {
   g_return_val_if_fail (settings != NULL, 0);
   
@@ -356,7 +356,7 @@ settings_get_copies        (const settings_t * settings)
 
 
 unsigned long
-settings_get_channels        (const settings_t * settings)
+lv2_settings_get_channels        (const lv2_settings_t * settings)
 {
   g_return_val_if_fail (settings != NULL, 0);
   
@@ -364,7 +364,7 @@ settings_get_channels        (const settings_t * settings)
 }
 
 gboolean
-settings_get_wet_dry_enabled (const settings_t * settings)
+lv2_settings_get_wet_dry_enabled (const lv2_settings_t * settings)
 {
   g_return_val_if_fail (settings != NULL, FALSE);
 
@@ -372,7 +372,7 @@ settings_get_wet_dry_enabled (const settings_t * settings)
 }
 
 gboolean
-settings_get_wet_dry_locked  (const settings_t * settings)
+lv2_settings_get_wet_dry_locked  (const lv2_settings_t * settings)
 {
   g_return_val_if_fail (settings != NULL, FALSE);
   
@@ -380,12 +380,12 @@ settings_get_wet_dry_locked  (const settings_t * settings)
 }
 
 LADSPA_Data
-settings_get_wet_dry_value   (settings_t * settings, unsigned long channel)
+lv2_settings_get_wet_dry_value   (lv2_settings_t * settings, unsigned long channel)
 {
   g_return_val_if_fail (settings != NULL, NAN);
 
   if (channel >= settings->channels)
-    settings_set_channels (settings, channel + 1);
+    lv2_settings_set_channels (settings, channel + 1);
   
   return settings->wet_dry_values[channel];
 }

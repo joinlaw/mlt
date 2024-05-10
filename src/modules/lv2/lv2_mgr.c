@@ -36,11 +36,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "plugin_mgr.h"
-#include "plugin_desc.h"
+#include "lv2_mgr.h"
+#include "lv2_plugin_desc.h"
 #include "framework/mlt_log.h"
 #include "framework/mlt_factory.h"
-
 
 #include <lv2.h>
 
@@ -57,10 +56,7 @@
 #include "lv2/buf-size/buf-size.h"
 #include "lv2/parameters/parameters.h"
 
-typedef struct {
-  char** uris;
-  size_t n_uris;
-} URITable;
+#include "lv2_urid_helper.h"
 
 LilvNode *lv2_input_class;
 LilvNode *lv2_output_class;
@@ -85,40 +81,6 @@ static size_t   lv2opt_midi_buf_size   = 32768;
 static float    lv2opt_ui_update_hz    = 60.000000;
 static float    lv2opt_ui_scale_factor = 1.000000;
 
-static void
-uri_table_init(URITable* table)
-{
-  table->uris   = NULL;
-  table->n_uris = 0;
-}
-
-static LV2_URID
-uri_table_map(LV2_URID_Map_Handle handle, const char* uri)
-{
-  URITable* table = (URITable*)handle;
-  for (size_t i = 0; i < table->n_uris; ++i) {
-    if (!strcmp(table->uris[i], uri)) {
-      return i + 1;
-    }
-  }
-
-  const size_t len = strlen(uri);
-  table->uris = (char**)realloc(table->uris, ++table->n_uris * sizeof(char*));
-  table->uris[table->n_uris - 1] = (char*)malloc(len + 1);
-  memcpy(table->uris[table->n_uris - 1], uri, len + 1);
-  return table->n_uris;
-}
-
-static const char*
-uri_table_unmap(LV2_URID_Map_Handle handle, LV2_URID urid)
-{
-  URITable* table = (URITable*)handle;
-  if (urid > 0 && urid <= table->n_uris) {
-    return table->uris[urid - 1];
-  }
-  return NULL;
-}
-
 static LV2_URID_Map       map           = {&uri_table, uri_table_map};
 static LV2_Feature        map_feature   = {LV2_URID_MAP_URI, &map};
 static LV2_URID_Unmap     unmap         = {&uri_table, uri_table_unmap};
@@ -130,29 +92,29 @@ static LV2_Feature options_feature = {LV2_OPTIONS__options, (void *) lv2_options
 const LV2_Feature* features[]    = {&map_feature, &unmap_feature, &options_feature, &boundedBlockLength_feature, NULL};
 
 static void
-plugin_mgr2_get_object_file_plugins (lv2_mgr_t * plugin_mgr, const LilvPlugin * plugin)
+lv2_mgr_get_uri_plugins (lv2_mgr_t * plugin_mgr, const LilvPlugin * plugin)
 {
   unsigned long plugin_index = 0;
-  plugin_desc_t * desc;
+  lv2_plugin_desc_t * desc;
 
-  desc = plugin_desc2_new_with_descriptor (lilv_node_as_uri (lilv_plugin_get_uri (plugin)), plugin_index, plugin);
+  desc = lv2_plugin_desc_new_with_descriptor (lilv_node_as_uri (lilv_plugin_get_uri (plugin)), plugin_index, plugin);
   plugin_mgr->all_plugins = g_slist_append (plugin_mgr->all_plugins, desc);
   plugin_index++;
   plugin_mgr->plugin_count++;
 }
 
 static void
-plugin_mgr2_get_dir_plugins (lv2_mgr_t * plugin_mgr, const char * dir)
+lv2_mgr_get_dir_plugins (lv2_mgr_t * plugin_mgr, const char * dir)
 {
   LILV_FOREACH (plugins, i, plugin_mgr->plugin_list)
     {
       const LilvPlugin *p = lilv_plugins_get (plugin_mgr->plugin_list, i);
-      plugin_mgr2_get_object_file_plugins (plugin_mgr, p);
+      lv2_mgr_get_uri_plugins (plugin_mgr, p);
     }
 }
 
 static void
-plugin_mgr2_get_path_plugins (lv2_mgr_t * plugin_mgr)
+lv2_mgr_get_path_plugins (lv2_mgr_t * plugin_mgr)
 {
   char * ladspa_path, * dir = NULL;
   
@@ -180,25 +142,25 @@ plugin_mgr2_get_path_plugins (lv2_mgr_t * plugin_mgr)
     ladspa_path = g_strdup ("/usr/local/lib/ladspa:/usr/lib/ladspa:/usr/lib64/ladspa");
 #endif
 
-  plugin_mgr2_get_dir_plugins (plugin_mgr, dir);
+  lv2_mgr_get_dir_plugins (plugin_mgr, dir);
 
   g_free (ladspa_path);
 }
 
 
 static gint
-plugin_mgr_sort (gconstpointer a, gconstpointer b)
+lv2_mgr_sort (gconstpointer a, gconstpointer b)
 {
-  const plugin_desc_t * da;
-  const plugin_desc_t * db;
-  da = (const plugin_desc_t *) a;
-  db = (const plugin_desc_t *) b;
+  const lv2_plugin_desc_t * da;
+  const lv2_plugin_desc_t * db;
+  da = (const lv2_plugin_desc_t *) a;
+  db = (const lv2_plugin_desc_t *) b;
   
   return strcasecmp (da->name, db->name);
 }
 
 lv2_mgr_t *
-plugin_mgr2_new ()
+lv2_mgr_new ()
 {
   lv2_mgr_t * pm;
   char dirname[PATH_MAX];
@@ -280,25 +242,25 @@ plugin_mgr2_new ()
   lv2_options_features[6].type    = 0;
   lv2_options_features[6].value   = NULL;
 
-  snprintf (dirname, PATH_MAX, "%s/jackrack/blacklist.txt", mlt_environment ("MLT_DATA"));
+  snprintf (dirname, PATH_MAX, "%s/lv2/blacklist.txt", mlt_environment ("MLT_DATA"));
   pm->blacklist = mlt_properties_load (dirname);
-  plugin_mgr2_get_path_plugins (pm);
+  lv2_mgr_get_path_plugins (pm);
   
   if (!pm->all_plugins)
     mlt_log_warning( NULL, "No LADSPA plugins were found!\n\nCheck your LADSPA_PATH environment variable.\n");
   else
-    pm->all_plugins = g_slist_sort (pm->all_plugins, plugin_mgr_sort);
+    pm->all_plugins = g_slist_sort (pm->all_plugins, lv2_mgr_sort);
   
   return pm;
 }
 
 void
-plugin_mgr2_destroy (lv2_mgr_t * plugin_mgr)
+lv2_mgr_destroy (lv2_mgr_t * plugin_mgr)
 {
   GSList * list;
   
   for (list = plugin_mgr->all_plugins; list; list = g_slist_next (list))
-    plugin_desc_destroy ((plugin_desc_t *) list->data);
+    lv2_plugin_desc_destroy ((lv2_plugin_desc_t *) list->data);
   
   g_slist_free (plugin_mgr->plugins);
   g_slist_free (plugin_mgr->all_plugins);
@@ -308,10 +270,10 @@ plugin_mgr2_destroy (lv2_mgr_t * plugin_mgr)
 }
 
 void
-plugin_mgr2_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels)
+lv2_mgr_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels)
 {
   GSList * list;
-  plugin_desc_t * desc;
+  lv2_plugin_desc_t * desc;
 
   /* clear the current plugins */
   g_slist_free (plugin_mgr->plugins);
@@ -319,26 +281,24 @@ plugin_mgr2_set_plugins (lv2_mgr_t * plugin_mgr, unsigned long rack_channels)
 
   for (list = plugin_mgr->all_plugins; list; list = g_slist_next (list))
     {
-      desc = (plugin_desc_t *) list->data;
+      desc = (lv2_plugin_desc_t *) list->data;
 
-      if (desc->channels > 0 && plugin_desc_get_copies (desc, rack_channels) != 0)
+      if (desc->channels > 0 && lv2_plugin_desc_get_copies (desc, rack_channels) != 0)
            plugin_mgr->plugins = g_slist_append (plugin_mgr->plugins, desc);
     }
 }
 
-static plugin_desc_t *
-plugin_mgr2_find_desc (lv2_mgr_t * plugin_mgr, GSList * plugins, char *id)
+static lv2_plugin_desc_t *
+lv2_mgr_find_desc (lv2_mgr_t * plugin_mgr, GSList * plugins, char *id)
 {
   GSList * list;
-  plugin_desc_t * desc;
+  lv2_plugin_desc_t * desc;
   
   for (list = plugins; list; list = g_slist_next (list))
     {
-      desc = (plugin_desc_t *) list->data;
-      
-      /* if (desc->id == id)
-           return desc; */
-      if (!strcmp(desc->object_file, id))
+      desc = (lv2_plugin_desc_t *) list->data;
+
+      if (!strcmp(desc->uri, id))
         return desc;
 
     }
@@ -346,16 +306,16 @@ plugin_mgr2_find_desc (lv2_mgr_t * plugin_mgr, GSList * plugins, char *id)
   return NULL;
 }
 
-plugin_desc_t *
-plugin_mgr2_get_desc (lv2_mgr_t * plugin_mgr, char *id)
+lv2_plugin_desc_t *
+lv2_mgr_get_desc (lv2_mgr_t * plugin_mgr, char *id)
 {
-  return plugin_mgr2_find_desc (plugin_mgr, plugin_mgr->plugins, id);
+  return lv2_mgr_find_desc (plugin_mgr, plugin_mgr->plugins, id);
 }
 
-plugin_desc_t *
-plugin_mgr2_get_any_desc (lv2_mgr_t * plugin_mgr, char *id)
+lv2_plugin_desc_t *
+lv2_mgr_get_any_desc (lv2_mgr_t * plugin_mgr, char *id)
 {
-  return plugin_mgr2_find_desc (plugin_mgr, plugin_mgr->all_plugins, id);
+  return lv2_mgr_find_desc (plugin_mgr, plugin_mgr->all_plugins, id);
 }
 
 /* EOF */

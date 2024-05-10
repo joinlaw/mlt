@@ -33,15 +33,15 @@
 
 #include "lock_free_fifo.h"
 
-typedef struct _process_info process_info_t;
+typedef struct _lv2_process_info lv2_process_info_t;
 
 /** this is what gets passed to the process() callback and contains all
     the data the process callback will need */
-struct _process_info {
+struct _lv2_process_info {
 
   /** the plugin instance chain */
-  struct _plugin2 * chain;
-  struct _plugin2 * chain_end;
+  struct _lv2_plugin * chain;
+  struct _lv2_plugin * chain_end;
   
 #ifdef WITH_JACK
   jack_client_t * jack_client;
@@ -62,23 +62,23 @@ struct _process_info {
 #ifndef WITH_JACK
 typedef guint32 jack_nframes_t;
 #endif
-extern jack_nframes_t sample_rate;
-extern jack_nframes_t buffer_size;
+extern jack_nframes_t lv2_sample_rate;
+extern jack_nframes_t lv2_buffer_size;
 
-process_info_t * process_info_new (const char * client_name,
+lv2_process_info_t * lv2_process_info_new (const char * client_name,
 	unsigned long rack_channels, gboolean connect_inputs, gboolean connect_outputs);
-void process_info_destroy (process_info_t * procinfo);
+void lv2_process_info_destroy (lv2_process_info_t * procinfo);
 
-void process_info_set_channels (process_info_t * procinfo,
+void lv2_process_info_set_channels (lv2_process_info_t * procinfo,
 	unsigned long channels, gboolean connect_inputs, gboolean connect_outputs);
 
-int process_ladspa (process_info_t * procinfo, jack_nframes_t frames,
+int process_lv2 (lv2_process_info_t * procinfo, jack_nframes_t frames,
                     LADSPA_Data ** inputs, LADSPA_Data ** outputs);
 
 #ifdef WITH_JACK
 int process_jack (jack_nframes_t frames, void * data);
 #endif
 
-void process_quit (process_info_t * procinfo);
+void lv2_process_quit (lv2_process_info_t * procinfo);
 
 #endif /* __JLH_PROCESS_H__ */

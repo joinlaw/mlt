@@ -13,11 +13,11 @@ if(GPL AND TARGET PkgConfig::xml AND TARGET PkgConfig::glib AND TARGET PkgConfig
   target_sources(mltlv2 PRIVATE
     lv2_rack.c lv2_rack.h
     lock_free_fifo.c lock_free_fifo.h
-    plugin.c plugin.h
-    plugin_desc.c plugin_desc.h
-    plugin_mgr.c plugin_mgr.h
-    plugin_settings.c plugin_settings.h
-    process.c process.h
+    lv2_plugin.c lv2_plugin.h
+    lv2_plugin_desc.c lv2_plugin_desc.h
+    lv2_mgr.c lv2_mgr.h
+    lv2_plugin_settings.c lv2_plugin_settings.h
+    lv2_process.c lv2_process.h
     producer_lv2.c
     filter_lv2.c
   )

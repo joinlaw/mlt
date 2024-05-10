@@ -31,9 +31,9 @@
 
 #include <glib.h>
 
-#include "plugin.h"
+#include "lv2_plugin.h"
 #include "lv2_rack.h"
-#include "process.h"
+#include "lv2_process.h"
 #include "framework/mlt_log.h"
 
 #define CONTROL_FIFO_SIZE   128
@@ -43,7 +43,7 @@ extern const LV2_Feature* features[];
 #ifdef WITH_JACK
 /* swap over the jack ports in two plugins */
 static void
-plugin_swap_aux_ports (plugin2_t * plugin, plugin2_t * other)
+plugin_swap_aux_ports (lv2_plugin_t * plugin, lv2_plugin_t * other)
 {
   guint copy;
   jack_port_t ** aux_ports_tmp;
@@ -61,7 +61,7 @@ plugin_swap_aux_ports (plugin2_t * plugin, plugin2_t * other)
     plugin's audio memory.  make sure to check that plugin->prev
     exists. */
 void
-plugin2_connect_input_ports (plugin2_t * plugin, LADSPA_Data ** inputs)
+lv2_plugin_connect_input_ports (lv2_plugin_t * plugin, LADSPA_Data ** inputs)
 {
   gint copy;
   unsigned long channel;
@@ -88,7 +88,7 @@ plugin2_connect_input_ports (plugin2_t * plugin, LADSPA_Data ** inputs)
 
 /** connect up a plugin's output ports to its own audio_output_memory output memory */
 void
-plugin2_connect_output_ports (plugin2_t * plugin)
+lv2_plugin_connect_output_ports (lv2_plugin_t * plugin)
 {
   gint copy;
   unsigned long channel;
@@ -111,7 +111,7 @@ plugin2_connect_output_ports (plugin2_t * plugin)
 
 
 void
-process_add_plugin (process_info_t * procinfo, plugin2_t * plugin)
+process_add_plugin (lv2_process_info_t * procinfo, lv2_plugin_t * plugin)
 {
 
   /* sort out list pointers */
@@ -128,8 +128,8 @@ process_add_plugin (process_info_t * procinfo, plugin2_t * plugin)
 }
 
 /** remove a plugin from the chain */
-plugin2_t *
-process_remove_plugin (process_info_t * procinfo, plugin2_t *plugin)
+lv2_plugin_t *
+process_remove_plugin (lv2_process_info_t * procinfo, lv2_plugin_t *plugin)
 {
   /* sort out chain pointers */
   if (plugin->prev)
@@ -146,7 +146,7 @@ process_remove_plugin (process_info_t * procinfo, plugin2_t *plugin)
   /* sort out the aux ports */
   if (procinfo->jack_client && plugin->desc->aux_channels > 0)
     {
-      plugin2_t * other;
+      lv2_plugin_t * other;
       
       for (other = plugin->next; other; other = other->next)
         if (other->desc->id == plugin->desc->id)
@@ -159,24 +159,24 @@ process_remove_plugin (process_info_t * procinfo, plugin2_t *plugin)
 
 /** enable/disable a plugin */
 void
-process_ablise_plugin (process_info_t * procinfo, plugin2_t *plugin, gboolean enable)
+process_ablise_plugin (lv2_process_info_t * procinfo, lv2_plugin_t *plugin, gboolean enable)
 {
   plugin->enabled = enable;
 }
 
 /** enable/disable a plugin */
 void
-process_ablise_plugin_wet_dry (process_info_t * procinfo, plugin2_t *plugin, gboolean enable)
+process_ablise_plugin_wet_dry (lv2_process_info_t * procinfo, lv2_plugin_t *plugin, gboolean enable)
 {
   plugin->wet_dry_enabled = enable;
 }
 
 /** move a plugin up or down one place in the chain */
 void
-process_move_plugin (process_info_t * procinfo, plugin2_t *plugin, gint up)
+process_move_plugin (lv2_process_info_t * procinfo, lv2_plugin_t *plugin, gint up)
 {
   /* other plugins in the chain */
-  plugin2_t *pp = NULL, *p, *n, *nn = NULL;
+  lv2_plugin_t *pp = NULL, *p, *n, *nn = NULL;
 
   /* note that we should never receive an illogical move request
      ie, there will always be at least 1 plugin before for an up
@@ -237,7 +237,7 @@ process_move_plugin (process_info_t * procinfo, plugin2_t *plugin, gint up)
 #ifdef WITH_JACK
   if (procinfo->jack_client && plugin->desc->aux_channels > 0)
     {
-      plugin2_t * other;
+      lv2_plugin_t * other;
       other = up ? plugin->next : plugin->prev;
       
       /* swap around the jack ports */
@@ -248,9 +248,9 @@ process_move_plugin (process_info_t * procinfo, plugin2_t *plugin, gint up)
 }
 
 /** exchange an existing plugin for a newly created one */
-plugin2_t *
-process_change_plugin (process_info_t * procinfo,
-	               plugin2_t *plugin, plugin2_t * new_plugin)
+lv2_plugin_t *
+process_change_plugin (lv2_process_info_t * procinfo,
+	               lv2_plugin_t *plugin, lv2_plugin_t * new_plugin)
 {
   new_plugin->next = plugin->next;
   new_plugin->prev = plugin->prev;
@@ -269,7 +269,7 @@ process_change_plugin (process_info_t * procinfo,
   /* sort out the aux ports */
   if (procinfo->jack_client && plugin->desc->aux_channels > 0)
     {
-      plugin2_t * other;
+      lv2_plugin_t * other;
       
       for (other = plugin->next; other; other = other->next)
         if (other->desc->id == plugin->desc->id)
@@ -286,7 +286,7 @@ process_change_plugin (process_info_t * procinfo,
  ******************************************/
 
 static int
-plugin2_instantiate (const LilvPlugin *plugin,
+lv2_plugin_instantiate (const LilvPlugin *plugin,
 		     unsigned long plugin_index,
 		     gint copies,
 		     LilvInstance **instances)
@@ -295,18 +295,7 @@ plugin2_instantiate (const LilvPlugin *plugin,
   
   for (i = 0; i < copies; i++)
     {
-      /*
-	some plugins require optional features and I don't currently make checks so for example this plugin will hang my current
-	implementation: http://zynaddsubfx.sourceforge.net/fx#Reverb
-	and lilv will warn you with:
-	Options feature missing, cannot continue!
-
-	but many work normally like this one:
-	http://calf.sourceforge.net/plugins/Crusher
-       */
-
-      //instances[i] = lilv_plugin_instantiate(plugin, sample_rate, NULL);
-      instances[i] = lilv_plugin_instantiate(plugin, sample_rate, features);
+      instances[i] = lilv_plugin_instantiate(plugin, lv2_sample_rate, features);
       
       if (!instances[i])
         {
@@ -323,16 +312,16 @@ plugin2_instantiate (const LilvPlugin *plugin,
 #ifdef WITH_JACK
 
 static void
-plugin2_create_aux_ports (plugin2_t * plugin, guint copy, jack_rack_t * jack_rack)
+lv2_plugin_create_aux_ports (lv2_plugin_t * plugin, guint copy, lv2_rack_t * lv2_rack)
 {
-  plugin_desc_t * desc;
+  lv2_plugin_desc_t * desc;
   unsigned long aux_channel = 1;
   unsigned long plugin_index = 1;
   unsigned long i;
   char port_name[64];
   char * plugin_name;
   char * ptr;
-  ladspa2_holder_t * holder;
+  lv2_holder_t * holder;
      
   desc = plugin->desc;
   holder = plugin->holders + copy;
@@ -352,7 +341,7 @@ plugin2_create_aux_ports (plugin2_t * plugin, guint copy, jack_rack_t * jack_rac
     }
    
   /*	
-	for (list = jack_rack->slots; list; list = g_list_next (list))
+	for (list = lv2_rack->slots; list; list = g_list_next (list))
 	{
 	slot = (plugin_slot_t *) list->data;
          
@@ -371,7 +360,7 @@ plugin2_create_aux_ports (plugin2_t * plugin, guint copy, jack_rack_t * jack_rac
 	       aux_channel);
          
       holder->aux_ports[i] =
-	jack_port_register (jack_rack->procinfo->jack_client,
+	jack_port_register (lv2_rack->procinfo->jack_client,
 			    port_name,
 			    JACK_DEFAULT_AUDIO_TYPE,
 			    desc->aux_are_input ? JackPortIsInput : JackPortIsOutput,
@@ -389,14 +378,14 @@ plugin2_create_aux_ports (plugin2_t * plugin, guint copy, jack_rack_t * jack_rac
 #endif
 
 static void
-plugin2_init_holder (const plugin2_t   *plugin,
+lv2_plugin_init_holder (const lv2_plugin_t   *plugin,
                     guint         copy,
                     const LilvInstance *instance,
-                    jack_rack_t  *jack_rack)
+                    lv2_rack_t  *lv2_rack)
 {
   unsigned long i;
-  plugin_desc_t * desc;
-  ladspa2_holder_t * holder;
+  lv2_plugin_desc_t * desc;
+  lv2_holder_t * holder;
   
   desc = plugin->desc;
   holder = plugin->holders + copy;
@@ -452,42 +441,40 @@ plugin2_init_holder (const plugin2_t   *plugin,
     }
   
 #ifdef WITH_JACK
-  if (jack_rack->procinfo->jack_client && plugin->desc->aux_channels > 0)
-    plugin2_create_aux_ports (plugin, copy, jack_rack);
+  if (lv2_rack->procinfo->jack_client && plugin->desc->aux_channels > 0)
+    lv2_plugin_create_aux_ports (plugin, copy, lv2_rack);
 #endif
 
   lilv_instance_activate(instance);
 }
 
-plugin2_t *
-plugin2_new (plugin_desc_t * desc, jack_rack_t * jack_rack)
+lv2_plugin_t *
+lv2_plugin_new (lv2_plugin_desc_t * desc, lv2_rack_t * lv2_rack)
 {
   LilvInstance **instances;
   gint copies;
   unsigned long i;
   int err;
-  plugin2_t * plugin;
+  lv2_plugin_t * plugin;
   
   /* open the plugin */
-  /* since we aren't dealing with so files directly in lv2 so code is changed there is no LADSPA_Descriptor */
+  plugin = g_malloc (sizeof (lv2_plugin_t));
 
-  plugin = g_malloc (sizeof (plugin2_t));
-
-  char *peter = strchr(desc->object_file, '<');
-  while (peter != NULL)
+  char *str_ptr = strchr(desc->uri, '<');
+  while (str_ptr != NULL)
     {
-      *peter++ = ':';
-      peter = strchr(peter, '<');
+      *str_ptr++ = ':';
+      str_ptr = strchr(str_ptr, '<');
     }
 
-  plugin->lv2_plugin_uri = lilv_new_uri(jack_rack->plugin_mgr->lv2_world, desc->object_file);
-  plugin->lv2_plugin = lilv_plugins_get_by_uri(jack_rack->plugin_mgr->plugin_list, plugin->lv2_plugin_uri);
+  plugin->lv2_plugin_uri = lilv_new_uri(lv2_rack->plugin_mgr->lv2_world, desc->uri);
+  plugin->lv2_plugin = lilv_plugins_get_by_uri(lv2_rack->plugin_mgr->plugin_list, plugin->lv2_plugin_uri);
 
-  peter = strchr(desc->object_file, ':');
-  while (peter != NULL)
+  str_ptr = strchr(desc->uri, ':');
+  while (str_ptr != NULL)
     {
-      *peter++ = '<';
-      peter = strchr(peter, ':');
+      *str_ptr++ = '<';
+      str_ptr = strchr(str_ptr, ':');
     }
 
   plugin->def_values = g_malloc(lilv_plugin_get_num_ports(plugin->lv2_plugin) * sizeof (float));
@@ -496,10 +483,10 @@ plugin2_new (plugin_desc_t * desc, jack_rack_t * jack_rack)
   lilv_plugin_get_port_ranges_float(plugin->lv2_plugin, plugin->min_values, plugin->max_values, plugin->def_values);
 
   /* create the instances */
-  copies = plugin_desc_get_copies (desc, jack_rack->channels);
+  copies = lv2_plugin_desc_get_copies (desc, lv2_rack->channels);
   instances = g_malloc (sizeof (LADSPA_Handle) * copies);
 
-  err = plugin2_instantiate (plugin->lv2_plugin, desc->index, copies, instances);
+  err = lv2_plugin_instantiate (plugin->lv2_plugin, desc->index, copies, instances);
 
   if (err)
     {
@@ -513,31 +500,31 @@ plugin2_new (plugin_desc_t * desc, jack_rack_t * jack_rack)
   plugin->next = NULL;
   plugin->prev = NULL;
   plugin->wet_dry_enabled = FALSE;
-  plugin->jack_rack = jack_rack;
+  plugin->lv2_rack = lv2_rack;
 
   /* create audio memory and wet/dry stuff */
-  plugin->audio_output_memory   = g_malloc (sizeof (LADSPA_Data *) * jack_rack->channels);
-  plugin->wet_dry_fifos  = g_malloc (sizeof (lff_t) * jack_rack->channels);
-  plugin->wet_dry_values = g_malloc (sizeof (LADSPA_Data) * jack_rack->channels);
+  plugin->audio_output_memory   = g_malloc (sizeof (LADSPA_Data *) * lv2_rack->channels);
+  plugin->wet_dry_fifos  = g_malloc (sizeof (lff_t) * lv2_rack->channels);
+  plugin->wet_dry_values = g_malloc (sizeof (LADSPA_Data) * lv2_rack->channels);
 
-  for (i = 0; i < jack_rack->channels; i++)
+  for (i = 0; i < lv2_rack->channels; i++)
     {
-      plugin->audio_output_memory[i] = g_malloc (sizeof (LADSPA_Data) * buffer_size);
+      plugin->audio_output_memory[i] = g_malloc (sizeof (LADSPA_Data) * lv2_buffer_size);
       lff_init (plugin->wet_dry_fifos + i, CONTROL_FIFO_SIZE, sizeof (LADSPA_Data));
       plugin->wet_dry_values[i] = 1.0;
     }
 
   /* create holders and fill them out */
-  plugin->holders = g_malloc (sizeof (ladspa2_holder_t) * copies);
+  plugin->holders = g_malloc (sizeof (lv2_holder_t) * copies);
   for (i = 0; i < copies; i++)
-    plugin2_init_holder (plugin, i, instances[i], jack_rack);
+    lv2_plugin_init_holder (plugin, i, instances[i], lv2_rack);
 
   return plugin;
 }
 
 
 void
-plugin_destroy (plugin2_t * plugin)
+lv2_plugin_destroy (lv2_plugin_t * plugin)
 {
   unsigned long i, j;
   int err = 0;
@@ -565,11 +552,11 @@ plugin_destroy (plugin2_t * plugin)
 
 #ifdef WITH_JACK
       /* aux ports */
-      if (plugin->jack_rack->procinfo->jack_client && plugin->desc->aux_channels > 0)
+      if (plugin->lv2_rack->procinfo->jack_client && plugin->desc->aux_channels > 0)
         {
           for (j = 0; j < plugin->desc->aux_channels; j++)
             {
-              err = jack_port_unregister (plugin->jack_rack->procinfo->jack_client,
+              err = jack_port_unregister (plugin->lv2_rack->procinfo->jack_client,
                                           plugin->holders[i].aux_ports[j]);
           
               if (err)
@@ -583,7 +570,7 @@ plugin_destroy (plugin2_t * plugin)
     
   g_free (plugin->holders);
   
-  for (i = 0; i < plugin->jack_rack->channels; i++)
+  for (i = 0; i < plugin->lv2_rack->channels; i++)
     {
       g_free (plugin->audio_output_memory[i]);
       lff_free (plugin->wet_dry_fifos + i);
@@ -596,7 +583,7 @@ plugin_destroy (plugin2_t * plugin)
   if (err)
     {
       mlt_log_warning( NULL, "%s: error closing shared object '%s': %s\n",
-               __FUNCTION__, plugin->desc->object_file, dlerror ());
+               __FUNCTION__, plugin->desc->uri, dlerror ());
     }
    
   g_free (plugin);

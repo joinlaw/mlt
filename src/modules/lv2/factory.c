@@ -40,21 +40,21 @@
 #include <lilv/lilv.h>
 
 #ifdef GPL
-#include "plugin_mgr.h"
+#include "lv2_mgr.h"
 #include <ladspa.h>
 
-extern mlt_filter filter_ladspa2_init(mlt_profile profile,
+extern mlt_filter filter_lv2_init(mlt_profile profile,
 				      mlt_service_type type,
 				      const char *id,
 				      char *arg);
-extern mlt_producer producer_ladspa2_init(mlt_profile profile,
+extern mlt_producer producer_lv2_init(mlt_profile profile,
                                          mlt_service_type type,
                                          const char *id,
                                          char *arg);
 
 lv2_mgr_t *g_lv2_plugin_mgr = NULL;
 
-static void add_port_to_metadata(mlt_properties p, plugin_desc_t *desc, int j)
+static void add_port_to_metadata(mlt_properties p, lv2_plugin_desc_t *desc, int j)
 {
     LADSPA_Data sample_rate = 48000;
     LADSPA_PortRangeHintDescriptor hint_descriptor = desc->port_range_hints[j].HintDescriptor;
@@ -64,17 +64,17 @@ static void add_port_to_metadata(mlt_properties p, plugin_desc_t *desc, int j)
         mlt_properties_set(p, "type", "integer");
         mlt_properties_set_int(p, 
                                "default",
-                               plugin_desc_get_default_control_value(desc, j, sample_rate));
+                               lv2_plugin_desc_get_default_control_value(desc, j, sample_rate));
     } else if (LADSPA_IS_HINT_TOGGLED(hint_descriptor)) {
         mlt_properties_set(p, "type", "boolean");
         mlt_properties_set_int(p,
                                "default",
-                               plugin_desc_get_default_control_value(desc, j, sample_rate));
+                               lv2_plugin_desc_get_default_control_value(desc, j, sample_rate));
     } else {
         mlt_properties_set(p, "type", "float");
         mlt_properties_set_double(p,
                                   "default",
-                                  plugin_desc_get_default_control_value(desc, j, sample_rate));
+                                  lv2_plugin_desc_get_default_control_value(desc, j, sample_rate));
     }
     /* set upper and lower, possibly adjusted to the sample rate */
     if (LADSPA_IS_HINT_BOUNDED_BELOW(hint_descriptor)) {
@@ -108,13 +108,13 @@ static mlt_properties metadata(mlt_service_type type, const char *id, char *data
 
         snprintf(file,
                  PATH_MAX,
-                 "%s/jackrack/%s",
+                 "%s/lv2/%s",
                  mlt_environment("MLT_DATA"),
 		 strncmp(id, "lv2.", 4) ? data : "filter_lv2.yml");
     } else {
         snprintf(file,
                  PATH_MAX,
-                 "%s/jackrack/%s",
+                 "%s/lv2/%s",
                  mlt_environment("MLT_DATA"),
 		 strncmp(id, "lv2.", 4) ? data : "producer_lv2.yml");
     }
@@ -123,7 +123,7 @@ static mlt_properties metadata(mlt_service_type type, const char *id, char *data
 #ifdef GPL
     if (!strncmp(id, "lv2.", 4)) {
         // Annotate the yaml properties with lv2 control port info.
-      plugin_desc_t *desc = plugin_mgr2_get_any_desc(g_lv2_plugin_mgr, (char *) &id[4]);
+      lv2_plugin_desc_t *desc = lv2_mgr_get_any_desc(g_lv2_plugin_mgr, (char *) &id[4]);
 
         if (desc) {
 
@@ -222,28 +222,28 @@ MLT_REPOSITORY
 #ifdef GPL
     GSList *list;
 
-    g_lv2_plugin_mgr = plugin_mgr2_new();
+    g_lv2_plugin_mgr = lv2_mgr_new();
 
     for (list = g_lv2_plugin_mgr->all_plugins; list; list = g_slist_next(list)) {
 
-      plugin_desc_t *desc = (plugin_desc_t *) list->data;
+      lv2_plugin_desc_t *desc = (lv2_plugin_desc_t *) list->data;
       char *s = NULL;
-      s = calloc(1, strlen("lv2.") + strlen (desc->object_file) + 1);
+      s = calloc(1, strlen("lv2.") + strlen (desc->uri) + 1);
 
-      sprintf(s, "lv2.%s", desc->object_file);
+      sprintf(s, "lv2.%s", desc->uri);
 
-      char *peter = strchr(s, ':');
-      while (peter != NULL)
+      char *str_ptr = strchr(s, ':');
+      while (str_ptr != NULL)
 	{
-	  *peter++ = '<';
-	  peter = strchr(peter, ':');
+	  *str_ptr++ = '<';
+	  str_ptr = strchr(str_ptr, ':');
 	}
       
       if (desc->has_input) {
-	MLT_REGISTER(mlt_service_filter_type, s, filter_ladspa2_init);
+	MLT_REGISTER(mlt_service_filter_type, s, filter_lv2_init);
 	MLT_REGISTER_METADATA(mlt_service_filter_type, s, metadata, NULL);
       } else {
-	MLT_REGISTER(mlt_service_producer_type, s, producer_ladspa2_init);
+	MLT_REGISTER(mlt_service_producer_type, s, producer_lv2_init);
 	MLT_REGISTER_METADATA(mlt_service_producer_type, s, metadata, NULL);
       }
 
@@ -253,9 +253,9 @@ MLT_REPOSITORY
 	}
     }
 
-    mlt_factory_register_for_clean_up(g_lv2_plugin_mgr, (mlt_destructor) plugin_mgr2_destroy);
+    mlt_factory_register_for_clean_up(g_lv2_plugin_mgr, (mlt_destructor) lv2_mgr_destroy);
 
-    MLT_REGISTER(mlt_service_filter_type, "lv2", filter_ladspa2_init);
+    MLT_REGISTER(mlt_service_filter_type, "lv2", filter_lv2_init);
     MLT_REGISTER_METADATA(mlt_service_filter_type, "lv2", metadata, "filter_lv2.yml");
 #endif
 }

@@ -26,8 +26,8 @@
 #include <float.h>
 #include <string.h>
 
-#include "plugin_desc.h"
-#include "plugin.h"
+#include "lv2_plugin_desc.h"
+#include "lv2_plugin.h"
 
 #define LADSPA_PORT_ATOM   10
 #define LADSPA_IS_PORT_ATOM(x)   ((x) & LADSPA_PORT_ATOM)
@@ -49,18 +49,17 @@ extern LilvNode *lv2_control_class;
 extern LilvNode *lv2_atom_class;
 
 void
-plugin_desc2_set_ports (plugin_desc_t * pd,
-			unsigned long port_count,
-			const LADSPA_PortDescriptor * port_descriptors,
-			const LADSPA_PortRangeHint * port_range_hints,
-			const char * const * port_names);
-
+lv2_plugin_desc_set_ports (lv2_plugin_desc_t * pd,
+			   unsigned long port_count,
+			   const LADSPA_PortDescriptor * port_descriptors,
+			   const LADSPA_PortRangeHint * port_range_hints,
+			   const char * const * port_names);
 
 
 static void
-plugin_desc_init (plugin_desc_t * pd)
+plugin_desc_init (lv2_plugin_desc_t * pd)
 {
-  pd->object_file      = NULL;
+  pd->uri      = NULL;
   pd->id               = 0;
   pd->name             = NULL;
   pd->maker            = NULL;
@@ -82,7 +81,7 @@ plugin_desc_init (plugin_desc_t * pd)
 }
 
 static void
-plugin_desc_free_ports (plugin_desc_t * pd)
+plugin_desc_free_ports (lv2_plugin_desc_t * pd)
 {
   if (pd->port_count)
     {
@@ -108,56 +107,56 @@ plugin_desc_free_ports (plugin_desc_t * pd)
 }
 
 static void
-plugin_desc_free (plugin_desc_t * pd)
+plugin_desc_free (lv2_plugin_desc_t * pd)
 {
-  plugin_desc_set_object_file (pd, NULL);
-  plugin_desc_set_name        (pd, NULL);
-  plugin_desc_set_maker       (pd, NULL);
+  lv2_plugin_desc_set_uri (pd, NULL);
+  lv2_plugin_desc_set_name        (pd, NULL);
+  lv2_plugin_desc_set_maker       (pd, NULL);
   plugin_desc_free_ports      (pd);
 }
 
-plugin_desc_t *
-plugin_desc_new ()
+lv2_plugin_desc_t *
+lv2_plugin_desc_new ()
 {
-  plugin_desc_t * pd;
-  pd = g_malloc (sizeof (plugin_desc_t));
+  lv2_plugin_desc_t * pd;
+  pd = g_malloc (sizeof (lv2_plugin_desc_t));
   plugin_desc_init (pd);
   return pd;
 }
 
-plugin_desc_t *
-plugin_desc2_new_with_descriptor (const char * object_file,
-				  unsigned long index,
-				  const LilvPlugin * plugin)
+lv2_plugin_desc_t *
+lv2_plugin_desc_new_with_descriptor (const char * uri,
+				     unsigned long index,
+				     const LilvPlugin * plugin)
 {
-  plugin_desc_t * pd;
-  pd = plugin_desc_new ();
+  lv2_plugin_desc_t * pd;
+  pd = lv2_plugin_desc_new ();
 
   LilvNode *val = NULL;
 
-  char *peter = strchr(object_file, ':');
-      while (peter != NULL)
+  char *str_ptr = strchr(uri, ':');
+      while (str_ptr != NULL)
 	{
-	  *peter++ = '<';
-	  peter = strchr(peter, ':');
+	  *str_ptr++ = '<';
+	  str_ptr = strchr(str_ptr, ':');
 	}
 
-  plugin_desc_set_object_file (pd, object_file);
+  lv2_plugin_desc_set_uri (pd, uri);
 
-  peter = strchr(object_file, '<');
-  while (peter != NULL)
+  str_ptr = strchr(uri, '<');
+  while (str_ptr != NULL)
     {
-      *peter++ = ':';
-      peter = strchr(peter, '<');
+      *str_ptr++ = ':';
+      str_ptr = strchr(str_ptr, '<');
     }
 
-  plugin_desc_set_index       (pd, index);
+  lv2_plugin_desc_set_index       (pd, index);
 
   val = lilv_plugin_get_name (plugin);
 
-  plugin_desc_set_name        (pd, lilv_node_as_string (val));
+  lv2_plugin_desc_set_name        (pd, lilv_node_as_string (val));
 
-  plugin_desc_set_maker       (pd, lilv_node_as_string (lilv_plugin_get_author_name (plugin)));
+  lv2_plugin_desc_set_maker       (pd, lilv_node_as_string (lilv_plugin_get_author_name (plugin)));
 
   int PortCount = lilv_plugin_get_num_ports (plugin);
   char **PortNames = calloc (PortCount, sizeof (char *));
@@ -198,7 +197,7 @@ plugin_desc2_new_with_descriptor (const char * object_file,
       PortNames[i] = (char *) lilv_node_as_string (lilv_port_get_name(plugin, port));
     }
 
-  plugin_desc2_set_ports       (pd,
+  lv2_plugin_desc_set_ports    (pd,
 				PortCount,
 				port_descriptors,
 				PortRangeHints,
@@ -214,45 +213,45 @@ plugin_desc2_new_with_descriptor (const char * object_file,
 }
 
 void
-plugin_desc_destroy (plugin_desc_t * pd)
+lv2_plugin_desc_destroy (lv2_plugin_desc_t * pd)
 {
   plugin_desc_free (pd);
   g_free (pd);
 }
 
 void
-plugin_desc_set_object_file (plugin_desc_t * pd, const char * object_file)
+lv2_plugin_desc_set_uri (lv2_plugin_desc_t * pd, const char * uri)
 {
-  set_string_property (pd->object_file, object_file);
+  set_string_property (pd->uri, uri);
 }
 
 void
-plugin_desc_set_index          (plugin_desc_t * pd, unsigned long index)
+lv2_plugin_desc_set_index          (lv2_plugin_desc_t * pd, unsigned long index)
 {
   pd->index = index;
 }
 
 
 void
-plugin_desc_set_id          (plugin_desc_t * pd, unsigned long id)
+lv2_plugin_desc_set_id          (lv2_plugin_desc_t * pd, unsigned long id)
 {
   pd->id = id;
 }
 
 void
-plugin_desc_set_name        (plugin_desc_t * pd, const char * name)
+lv2_plugin_desc_set_name        (lv2_plugin_desc_t * pd, const char * name)
 {
   set_string_property (pd->name, name);
 }
 
 void
-plugin_desc_set_maker       (plugin_desc_t * pd, const char * maker)
+lv2_plugin_desc_set_maker       (lv2_plugin_desc_t * pd, const char * maker)
 {
   set_string_property (pd->maker, maker);
 }
 
 void
-plugin_desc_set_properties  (plugin_desc_t * pd, LADSPA_Properties properties)
+lv2_plugin_desc_set_properties  (lv2_plugin_desc_t * pd, LADSPA_Properties properties)
 {
   pd->properties = properties;
 }
@@ -273,7 +272,7 @@ plugin_desc_add_audio_port_index (unsigned long ** indices,
 }
 
 static void
-plugin_desc2_set_port_counts (plugin_desc_t * pd)
+lv2_plugin_desc_set_port_counts (lv2_plugin_desc_t * pd)
 {
   unsigned long i;
   unsigned long icount = 0;
@@ -364,11 +363,11 @@ plugin_desc2_set_port_counts (plugin_desc_t * pd)
 }
 
 void
-plugin_desc2_set_ports (plugin_desc_t * pd,
-			unsigned long port_count,
-			const LADSPA_PortDescriptor * port_descriptors,
-			const LADSPA_PortRangeHint * port_range_hints,
-			const char * const * port_names)
+lv2_plugin_desc_set_ports (lv2_plugin_desc_t * pd,
+			   unsigned long port_count,
+			   const LADSPA_PortDescriptor * port_descriptors,
+			   const LADSPA_PortRangeHint * port_range_hints,
+			   const char * const * port_names)
 {
   unsigned long i;
 
@@ -388,11 +387,11 @@ plugin_desc2_set_ports (plugin_desc_t * pd,
   for (i = 0; i < port_count; i++)
     pd->port_names[i] = g_strdup (port_names[i]);
   
-  plugin_desc2_set_port_counts (pd);
+  lv2_plugin_desc_set_port_counts (pd);
 }
 
 LADSPA_Data
-plugin_desc_get_default_control_value (plugin_desc_t * pd, unsigned long port_index, guint32 sample_rate)
+lv2_plugin_desc_get_default_control_value (lv2_plugin_desc_t * pd, unsigned long port_index, guint32 sample_rate)
 {
   LADSPA_Data upper, lower;
   LADSPA_PortRangeHintDescriptor hint_descriptor;
@@ -492,11 +491,11 @@ plugin_desc_get_default_control_value (plugin_desc_t * pd, unsigned long port_in
 }
 
 LADSPA_Data
-plugin_desc_change_control_value (plugin_desc_t * pd,
-                                  unsigned long control_index,
-                                  LADSPA_Data value,
-                                  guint32 old_sample_rate,
-                                  guint32 new_sample_rate)
+lv2_plugin_desc_change_control_value (lv2_plugin_desc_t * pd,
+				      unsigned long control_index,
+				      LADSPA_Data value,
+				      guint32 old_sample_rate,
+				      guint32 new_sample_rate)
 {
   
   if (LADSPA_IS_HINT_SAMPLE_RATE (pd->port_range_hints[control_index].HintDescriptor))
@@ -514,7 +513,7 @@ plugin_desc_change_control_value (plugin_desc_t * pd,
 }
 
 gint
-plugin_desc_get_copies (plugin_desc_t * pd, unsigned long rack_channels)
+lv2_plugin_desc_get_copies (lv2_plugin_desc_t * pd, unsigned long rack_channels)
 {
   gint copies = 1;
   

@@ -35,47 +35,47 @@
 #define BUFFER_LEN (10000)
 #define MAX_SAMPLE_COUNT (4096)
 
-static jack_rack_t *initialise_jack_rack2(mlt_properties properties, int channels)
+static lv2_rack_t *initialise_lv2_rack(mlt_properties properties, int channels)
 {
-    jack_rack_t *jackrack = NULL;
+    lv2_rack_t *lv2rack = NULL;
     char *resource = mlt_properties_get(properties, "resource");
     if (!resource && mlt_properties_get(properties, "src"))
         resource = mlt_properties_get(properties, "src");
 
-    char *strara = NULL;
-    strara = mlt_properties_get (properties, "_pluginid");
+    char *plugin_id = NULL;
+    plugin_id = mlt_properties_get (properties, "_pluginid");
 
-    // Start JackRack
-    if (resource || strara) {
+    // Start LV2Rack
+    if (resource || plugin_id) {
 
-        // Create JackRack without Jack client name so that it only uses LADSPA
-      jackrack = jack_rack2_new(NULL, channels);
+        // Create LV2Rack without Jack client name so that it only uses LV2
+      lv2rack = lv2_rack_new(NULL, channels);
         mlt_properties_set_data(properties,
-                                "jackrack",
-                                jackrack,
+                                "lv2rack",
+                                lv2rack,
                                 0,
-                                (mlt_destructor) jack_rack_destroy,
+                                (mlt_destructor) lv2_rack_destroy,
                                 NULL);
 
         if (resource)
-	  // Load JACK Rack XML file
-	  jack_rack_open_file(jackrack, resource);
-	else if (strara) {
-            // Load one LADSPA plugin by its UniqueID
+	  // Load LV2 Rack XML file
+	  lv2_rack_open_file(lv2rack, resource);
+	else if (plugin_id) {
+            // Load one LV2 plugin by its URI
 
-	  char *id = strara;
-	  plugin_desc_t *desc = plugin_mgr2_get_any_desc(jackrack->plugin_mgr, id);
+	  char *id = plugin_id;
+	  lv2_plugin_desc_t *desc = lv2_mgr_get_any_desc(lv2rack->plugin_mgr, id);
 
-	  plugin2_t *plugin;
-	  if (desc && (plugin = jack_rack2_instantiate_plugin(jackrack, desc))) {
+	  lv2_plugin_t *plugin;
+	  if (desc && (plugin = lv2_rack_instantiate_plugin(lv2rack, desc))) {
 
 	    plugin->enabled = TRUE;
-	    process_add_plugin(jackrack->procinfo, plugin);
+	    process_add_plugin(lv2rack->procinfo, plugin);
 	    mlt_properties_set_int(properties, "instances", plugin->copies);
 	  } else {
 	    //mlt_log_error(properties, "failed to load plugin %lu\n", id);
 	    mlt_log_error(properties, "failed to load plugin `%s`\n", id);
-	    return jackrack;
+	    return lv2rack;
 	  }
 	       
 	  if (plugin && plugin->desc && plugin->copies == 0) {
@@ -91,10 +91,10 @@ static jack_rack_t *initialise_jack_rack2(mlt_properties properties, int channel
 			      "Not compatible with %d channels. Requesting %d channels instead.\n",
 			      channels,
 			      request_channels);
-	      jackrack = initialise_jack_rack2(properties, request_channels);
+	      lv2rack = initialise_lv2_rack(properties, request_channels);
 	    } else {
 	      mlt_log_error(properties, "Invalid plugin configuration: `%s`\n", id);
-	      return jackrack;
+	      return lv2rack;
 	    }
 	  }
 	       
@@ -103,16 +103,16 @@ static jack_rack_t *initialise_jack_rack2(mlt_properties properties, int channel
 			  "Plugin Initialized. Channels: %lu\tCopies: %d\tTotal: %lu\n",
 			  plugin->desc->channels,
 			  plugin->copies,
-			  jackrack->channels);
+			  lv2rack->channels);
         }
     }
-    return jackrack;
+    return lv2rack;
 }
 
 /** Get the audio.
 */
 
-static int ladspa2_get_audio(mlt_frame frame,
+static int lv2_get_audio(mlt_frame frame,
                             void **buffer,
                             mlt_audio_format *format,
                             int *frequency,
@@ -136,7 +136,7 @@ static int ladspa2_get_audio(mlt_frame frame,
                          prev_channels,
                          *channels);
             mlt_properties_set_data(filter_properties,
-                                    "jackrack",
+                                    "lv2rack",
                                     NULL,
                                     0,
                                     (mlt_destructor) NULL,
@@ -145,22 +145,21 @@ static int ladspa2_get_audio(mlt_frame frame,
         mlt_properties_set_int(filter_properties, "_prev_channels", *channels);
     }
 
-    // Initialise LADSPA if needed
-    jack_rack_t *jackrack = mlt_properties_get_data(filter_properties, "jackrack", NULL);
-    if (jackrack == NULL) {
-        sample_rate = *frequency; // global inside jack_rack
+    // Initialise LV2 if needed
+    lv2_rack_t *lv2rack = mlt_properties_get_data(filter_properties, "lv2rack", NULL);
+    if (lv2rack == NULL) {
+        lv2_sample_rate = *frequency; // global inside lv2_rack
 
-        jackrack = initialise_jack_rack2(filter_properties, *channels);
+        lv2rack = initialise_lv2_rack(filter_properties, *channels);
     }
 
-    char *strara = NULL;
-    strara = mlt_properties_get (filter_properties, "_pluginid");
+    char *plugin_id = NULL;
+    plugin_id = mlt_properties_get (filter_properties, "_pluginid");
 
-    if (jackrack && jackrack->procinfo && jackrack->procinfo->chain
-        && strara) {
+    if (lv2rack && lv2rack->procinfo && lv2rack->procinfo->chain && plugin_id) {
 
 
-        plugin2_t *plugin = jackrack->procinfo->chain;
+        lv2_plugin_t *plugin = lv2rack->procinfo->chain;
         LADSPA_Data value;
         int i, c;
         mlt_position position = mlt_filter_get_position(filter, frame);
@@ -171,11 +170,11 @@ static int ladspa2_get_audio(mlt_frame frame,
         mlt_frame_get_audio(frame, buffer, format, frequency, channels, samples);
 
         // Resize the buffer if necessary.
-        if (*channels < jackrack->channels) {
+        if (*channels < lv2rack->channels) {
             // Add extra channels to satisfy the plugin.
             // Extra channels in the buffer will be ignored by downstream services.
             int old_size = mlt_audio_format_size(*format, *samples, *channels);
-            int new_size = mlt_audio_format_size(*format, *samples, jackrack->channels);
+            int new_size = mlt_audio_format_size(*format, *samples, lv2rack->channels);
             uint8_t *new_buffer = mlt_pool_alloc(new_size);
             memcpy(new_buffer, *buffer, old_size);
             // Put silence in extra channels.
@@ -188,7 +187,6 @@ static int ladspa2_get_audio(mlt_frame frame,
             // Apply the control port values
             char key[20];
 	    value = plugin->def_values[plugin->desc->control_port_indicies[i]];
-            /* snprintf(key, sizeof(key), "%d", i); */
 	    snprintf(key, sizeof(key), "%d", (int) plugin->desc->control_port_indicies[i]);
 
             if (mlt_properties_get(filter_properties, key))
@@ -202,13 +200,13 @@ static int ladspa2_get_audio(mlt_frame frame,
         plugin->wet_dry_enabled = mlt_properties_get(filter_properties, "wetness") != NULL;
         if (plugin->wet_dry_enabled) {
             value = mlt_properties_anim_get_double(filter_properties, "wetness", position, length);
-            for (c = 0; c < jackrack->channels; c++)
+            for (c = 0; c < lv2rack->channels; c++)
                 plugin->wet_dry_values[c] = value;
         }
 
         // Configure the buffers
-        LADSPA_Data **input_buffers = mlt_pool_alloc(sizeof(LADSPA_Data *) * jackrack->channels);
-        LADSPA_Data **output_buffers = mlt_pool_alloc(sizeof(LADSPA_Data *) * jackrack->channels);
+        LADSPA_Data **input_buffers = mlt_pool_alloc(sizeof(LADSPA_Data *) * lv2rack->channels);
+        LADSPA_Data **output_buffers = mlt_pool_alloc(sizeof(LADSPA_Data *) * lv2rack->channels);
 
         // Some plugins crash with too many frames (samples).
         // So, feed the plugin with N samples per loop iteration.
@@ -216,12 +214,12 @@ static int ladspa2_get_audio(mlt_frame frame,
         int sample_count = MIN(*samples, MAX_SAMPLE_COUNT);
         for (i = 0; samples_offset < *samples; i++) {
             int j = 0;
-            for (; j < jackrack->channels; j++)
+            for (; j < lv2rack->channels; j++)
                 output_buffers[j] = input_buffers[j] = (LADSPA_Data *) *buffer + j * (*samples)
                                                        + samples_offset;
             sample_count = MIN(*samples - samples_offset, MAX_SAMPLE_COUNT);
             // Do LV2 processing
-            error = process_ladspa(jackrack->procinfo, sample_count, input_buffers, output_buffers);
+            error = process_lv2(lv2rack->procinfo, sample_count, input_buffers, output_buffers);
 
             samples_offset += MAX_SAMPLE_COUNT;
         }
@@ -254,7 +252,7 @@ static mlt_frame filter_process(mlt_filter this, mlt_frame frame)
 {
     if (mlt_frame_is_test_audio(frame) == 0) {
         mlt_frame_push_audio(frame, this);
-        mlt_frame_push_audio(frame, ladspa2_get_audio);
+        mlt_frame_push_audio(frame, lv2_get_audio);
     }
 
     return frame;
@@ -262,7 +260,7 @@ static mlt_frame filter_process(mlt_filter this, mlt_frame frame)
 
 /** Constructor for the filter.
 */
-mlt_filter filter_ladspa2_init(mlt_profile profile, mlt_service_type type, const char *id, char *arg)
+mlt_filter filter_lv2_init(mlt_profile profile, mlt_service_type type, const char *id, char *arg)
 {
   mlt_filter this = mlt_filter_new();
   /* mlt_filter this = mlt_factory_filter(profile, id, arga); */

@@ -34,9 +34,9 @@
 #include <time.h>
 #include <ctype.h>
 
-#include "process.h"
+#include "lv2_process.h"
 #include "lock_free_fifo.h"
-#include "plugin.h"
+#include "lv2_plugin.h"
 #include "lv2_rack.h"
 #include "framework/mlt_log.h"
 
@@ -51,15 +51,15 @@ extern pthread_mutex_t g_activate_mutex;
 #define TIME_RUN_SKIP_COUNT  5
 #define MAX_BUFFER_SIZE      4096
 
-jack_nframes_t sample_rate;
-jack_nframes_t buffer_size;
+jack_nframes_t lv2_sample_rate;
+jack_nframes_t lv2_buffer_size;
 
 #ifdef WITH_JACK
 
 static void
 jack_shutdown_cb (void * data)
 {
-  process_info_t * procinfo = data;
+  lv2_process_info_t * procinfo = data;
   
   procinfo->quit = TRUE;
 }
@@ -67,8 +67,8 @@ jack_shutdown_cb (void * data)
 #endif
 
 /** process messages for plugins' control ports */
-void process_control_port_messages (process_info_t * procinfo) {
-  plugin2_t * plugin;
+void lv2_process_control_port_messages (lv2_process_info_t * procinfo) {
+  lv2_plugin_t * plugin;
   unsigned long control;
   unsigned long channel;
   gint copy;
@@ -96,7 +96,7 @@ void process_control_port_messages (process_info_t * procinfo) {
 
 #ifdef WITH_JACK
 
-static int get_jack_buffers (process_info_t * procinfo, jack_nframes_t frames) {
+static int get_jack_buffers (lv2_process_info_t * procinfo, jack_nframes_t frames) {
   unsigned long channel;
   
   for (channel = 0; channel < procinfo->channels; channel++)
@@ -121,10 +121,10 @@ static int get_jack_buffers (process_info_t * procinfo, jack_nframes_t frames) {
 
 #endif
 
-plugin2_t *
-get_first_enabled_plugin (process_info_t * procinfo)
+lv2_plugin_t *
+lv2_get_first_enabled_plugin (lv2_process_info_t * procinfo)
 {
-  plugin2_t * first_enabled;
+  lv2_plugin_t * first_enabled;
   
   if (!procinfo->chain) return NULL;
 
@@ -138,10 +138,10 @@ get_first_enabled_plugin (process_info_t * procinfo)
   return NULL;
 }
 
-plugin2_t *
-get_last_enabled_plugin (process_info_t * procinfo)
+lv2_plugin_t *
+lv2_get_last_enabled_plugin (lv2_process_info_t * procinfo)
 {
-  plugin2_t * last_enabled;
+  lv2_plugin_t * last_enabled;
   
   if (!procinfo->chain) return NULL;
 
@@ -156,17 +156,17 @@ get_last_enabled_plugin (process_info_t * procinfo)
 }
 
 void
-connect2_chain (process_info_t * procinfo, jack_nframes_t frames)
+lv2_connect_chain (lv2_process_info_t * procinfo, jack_nframes_t frames)
 {
-  plugin2_t * first_enabled, * last_enabled, * plugin;
+  lv2_plugin_t * first_enabled, * last_enabled, * plugin;
   gint copy;
   unsigned long channel;
   if (!procinfo->chain) return;
   
-  first_enabled = get_first_enabled_plugin (procinfo);
+  first_enabled = lv2_get_first_enabled_plugin (procinfo);
   if (!first_enabled) return;
   
-  last_enabled = get_last_enabled_plugin (procinfo);
+  last_enabled = lv2_get_last_enabled_plugin (procinfo);
   
   /* sort out the aux ports */
   plugin = first_enabled;
@@ -196,31 +196,31 @@ connect2_chain (process_info_t * procinfo, jack_nframes_t frames)
   while ( (plugin != last_enabled) && (plugin = plugin->next) );
 
   /* ensure that all the of the enabled plugins are connected to their memory */
-  plugin2_connect_output_ports (first_enabled);
+  lv2_plugin_connect_output_ports (first_enabled);
   if (first_enabled != last_enabled)
     {
-      plugin2_connect_input_ports (last_enabled, last_enabled->prev->audio_output_memory);
+      lv2_plugin_connect_input_ports (last_enabled, last_enabled->prev->audio_output_memory);
       for (plugin = first_enabled->next; plugin; plugin = plugin->next)
         {
           if (plugin->enabled)
             {
-              plugin2_connect_input_ports (plugin, plugin->prev->audio_output_memory);
-              plugin2_connect_output_ports (plugin);
+              lv2_plugin_connect_input_ports (plugin, plugin->prev->audio_output_memory);
+              lv2_plugin_connect_output_ports (plugin);
             }
         }
     }
 
   /* input buffers for first plugin */
   if( plugin->desc->has_input )
-    plugin2_connect_input_ports (first_enabled, procinfo->jack_input_buffers);
+    lv2_plugin_connect_input_ports (first_enabled, procinfo->jack_input_buffers);
 }
 
 void
-process2_chain (process_info_t * procinfo, jack_nframes_t frames)
+lv2_process_chain (lv2_process_info_t * procinfo, jack_nframes_t frames)
 {
-  plugin2_t * first_enabled;
-  plugin2_t * last_enabled = NULL;
-  plugin2_t * plugin;
+  lv2_plugin_t * first_enabled;
+  lv2_plugin_t * last_enabled = NULL;
+  lv2_plugin_t * plugin;
   unsigned long channel;
   unsigned long i;
 
@@ -246,7 +246,7 @@ process2_chain (process_info_t * procinfo, jack_nframes_t frames)
     }
 #endif
 
-  first_enabled = get_first_enabled_plugin (procinfo);
+  first_enabled = lv2_get_first_enabled_plugin (procinfo);
 
   /* no chain; just copy input to output */
   if (!procinfo->chain || !first_enabled)
@@ -263,7 +263,7 @@ process2_chain (process_info_t * procinfo, jack_nframes_t frames)
   
   /* all past here is guaranteed to have at least 1 enabled plugin */
 
-  last_enabled = get_last_enabled_plugin (procinfo);
+  last_enabled = lv2_get_last_enabled_plugin (procinfo);
   
   for (plugin = first_enabled;
        plugin;
@@ -304,8 +304,8 @@ process2_chain (process_info_t * procinfo, jack_nframes_t frames)
   
 }
 
-int process_ladspa (process_info_t * procinfo, jack_nframes_t frames,
-                    LADSPA_Data ** inputs, LADSPA_Data ** outputs) {
+int process_lv2 (lv2_process_info_t * procinfo, jack_nframes_t frames,
+		 LADSPA_Data ** inputs, LADSPA_Data ** outputs) {
   unsigned long channel;
 
   if (!procinfo)
@@ -317,11 +317,11 @@ int process_ladspa (process_info_t * procinfo, jack_nframes_t frames,
   if (procinfo->quit == TRUE)
     return 1;
   
-  process_control_port_messages (procinfo);
+   lv2_process_control_port_messages (procinfo);
   
   for (channel = 0; channel < procinfo->channels; channel++)
     {
-      if(get_first_enabled_plugin (procinfo)->desc->has_input)
+      if(lv2_get_first_enabled_plugin (procinfo)->desc->has_input)
         {
           procinfo->jack_input_buffers[channel] = inputs[channel];
           if (!procinfo->jack_input_buffers[channel])
@@ -338,9 +338,9 @@ int process_ladspa (process_info_t * procinfo, jack_nframes_t frames,
         }
     }
 
-  connect2_chain (procinfo, frames);
+  lv2_connect_chain (procinfo, frames);
 
-  process2_chain (procinfo, frames);
+  lv2_process_chain (procinfo, frames);
 
   return 0;
 }
@@ -349,9 +349,9 @@ int process_ladspa (process_info_t * procinfo, jack_nframes_t frames,
 
 int process_jack (jack_nframes_t frames, void * data) {
   int err;
-  process_info_t * procinfo;
+  lv2_process_info_t * procinfo;
   
-  procinfo = (process_info_t *) data;
+  procinfo = (lv2_process_info_t *) data;
   
   if (!procinfo)
     {
@@ -365,7 +365,7 @@ int process_jack (jack_nframes_t frames, void * data) {
   if (procinfo->quit == TRUE)
     return 1;
   
-  process_control_port_messages (procinfo);
+   lv2_process_control_port_messages (procinfo);
   
   err = get_jack_buffers (procinfo, frames);
   if (err)
@@ -374,9 +374,9 @@ int process_jack (jack_nframes_t frames, void * data) {
       return 0;
     }
   
-  connect2_chain (procinfo, frames);
+  lv2_connect_chain (procinfo, frames);
   
-  process2_chain (procinfo, frames);
+  lv2_process_chain (procinfo, frames);
   
   return 0;
 }
@@ -388,7 +388,7 @@ int process_jack (jack_nframes_t frames, void * data) {
  *******************************************/
  
 static int
-process_info_connect_jack (process_info_t * procinfo)
+lv2_process_info_connect_jack (lv2_process_info_t * procinfo)
 {
   mlt_log_info( NULL, _("Connecting to JACK server with client name '%s'\n"), procinfo->jack_client_name);
 
@@ -409,10 +409,10 @@ process_info_connect_jack (process_info_t * procinfo)
 }
 
 static void
-process_info_connect_port (process_info_t * procinfo,
-                           gshort in,
-                           unsigned long port_index,
-                           const char * port_name)
+lv2_process_info_connect_port (lv2_process_info_t * procinfo,
+			       gshort in,
+			       unsigned long port_index,
+			       const char * port_name)
 {
   const char ** jack_ports;
   unsigned long jack_port_index;
@@ -453,8 +453,8 @@ process_info_connect_port (process_info_t * procinfo,
 }
 
 static int
-process_info_set_port_count (process_info_t * procinfo,
-	unsigned long port_count, gboolean connect_inputs, gboolean connect_outputs)
+lv2_process_info_set_port_count (lv2_process_info_t * procinfo,
+     	unsigned long port_count, gboolean connect_inputs, gboolean connect_outputs)
 {
   unsigned long i;
   char * port_name;
@@ -508,7 +508,7 @@ process_info_set_port_count (process_info_t * procinfo,
         //mlt_log_debug( NULL, _("Created %s port %s\n"), in ? "input" : "output", port_name);
         
         if ((in && connect_inputs) || (!in && connect_outputs))
-          process_info_connect_port (procinfo, in, i, port_name);
+          lv2_process_info_connect_port (procinfo, in, i, port_name);
         
         g_free (port_name);
       }
@@ -522,24 +522,24 @@ process_info_set_port_count (process_info_t * procinfo,
 #endif
 
 void
-process_info_set_channels (process_info_t * procinfo,
+lv2_process_info_set_channels (lv2_process_info_t * procinfo,
 	unsigned long channels, gboolean connect_inputs, gboolean connect_outputs)
 {
 #ifdef WITH_JACK
-  process_info_set_port_count (procinfo, channels, connect_inputs, connect_outputs);
+  lv2_process_info_set_port_count (procinfo, channels, connect_inputs, connect_outputs);
 #endif
   procinfo->channels = channels; 
 }
 
-process_info_t *
-process_info_new (const char * client_name, unsigned long rack_channels, 
+lv2_process_info_t *
+lv2_process_info_new (const char * client_name, unsigned long rack_channels, 
 	gboolean connect_inputs, gboolean connect_outputs)
 {
-  process_info_t * procinfo;
+  lv2_process_info_t * procinfo;
   char * jack_client_name;
   int err;
 
-  procinfo = g_malloc (sizeof (process_info_t));
+  procinfo = g_malloc (sizeof (lv2_process_info_t));
   
   procinfo->chain = NULL;
   procinfo->chain_end = NULL;
@@ -554,9 +554,9 @@ process_info_new (const char * client_name, unsigned long rack_channels,
 	
   if ( client_name == NULL )
     {
-      sample_rate = 48000; // should be set externally before calling process_ladspa
-      buffer_size = MAX_BUFFER_SIZE;
-      procinfo->silent_buffer = g_malloc (sizeof (LADSPA_Data) * buffer_size );
+      lv2_sample_rate = 48000; // should be set externally before calling process_lv2
+      lv2_buffer_size = MAX_BUFFER_SIZE;
+      procinfo->silent_buffer = g_malloc (sizeof (LADSPA_Data) * lv2_buffer_size );
       procinfo->jack_input_buffers = g_malloc (sizeof (LADSPA_Data *) * rack_channels);
       procinfo->jack_output_buffers = g_malloc (sizeof (LADSPA_Data *) * rack_channels);
 
@@ -580,7 +580,7 @@ process_info_new (const char * client_name, unsigned long rack_channels,
     }
 
 #ifdef WITH_JACK
-  err = process_info_connect_jack (procinfo);
+  err = lv2_process_info_connect_jack (procinfo);
   if (err)
     {
 /*      g_free (procinfo); */
@@ -588,8 +588,8 @@ process_info_new (const char * client_name, unsigned long rack_channels,
 /*      abort (); */
     }
   
-  sample_rate = jack_get_sample_rate (procinfo->jack_client);
-  buffer_size = jack_get_sample_rate (procinfo->jack_client);
+  lv2_sample_rate = jack_get_sample_rate (procinfo->jack_client);
+  lv2_buffer_size = jack_get_sample_rate (procinfo->jack_client);
   
   jack_set_process_callback (procinfo->jack_client, process_jack, procinfo);
   pthread_mutex_lock( &g_activate_mutex );
@@ -598,7 +598,7 @@ process_info_new (const char * client_name, unsigned long rack_channels,
   
   jack_activate (procinfo->jack_client);
 
-  err = process_info_set_port_count (procinfo, rack_channels, connect_inputs, connect_outputs);
+  err = lv2_process_info_set_port_count (procinfo, rack_channels, connect_inputs, connect_outputs);
   if (err)
     return NULL;
 #endif
@@ -607,7 +607,7 @@ process_info_new (const char * client_name, unsigned long rack_channels,
 }
 
 void
-process_info_destroy (process_info_t * procinfo) {
+lv2_process_info_destroy (lv2_process_info_t * procinfo) {
 #ifdef WITH_JACK
   if (procinfo->jack_client)
     {
@@ -623,6 +623,6 @@ process_info_destroy (process_info_t * procinfo) {
   g_free (procinfo);
 }
 
-void process_quit (process_info_t * procinfo) {
+void lv2_process_quit (lv2_process_info_t * procinfo) {
   procinfo->quit = TRUE;
 }

@@ -1,5 +1,5 @@
 /*
- * JACK Rack
+ * LV2 Rack
  *
  * Original:
  * Copyright (C) Robert Ham 2002, 2003 (node@users.sourceforge.net)
@@ -34,7 +34,7 @@
 
 #include "lv2_rack.h"
 #include "lock_free_fifo.h"
-#include "plugin_settings.h"
+#include "lv2_plugin_settings.h"
 #include "framework/mlt_log.h"
 
 #ifndef _
@@ -45,42 +45,42 @@
 
 extern lv2_mgr_t *g_lv2_plugin_mgr;
 
-jack_rack_t *
-jack_rack2_new (const char * client_name, unsigned long channels)
+lv2_rack_t *
+lv2_rack_new (const char * client_name, unsigned long channels)
 {
-  jack_rack_t *rack;
+  lv2_rack_t *rack;
 
-  rack = g_malloc (sizeof (jack_rack_t));
+  rack = g_malloc (sizeof (lv2_rack_t));
   rack->saved_plugins  = NULL;
   rack->channels       = channels;
-  rack->procinfo = process_info_new (client_name, channels, FALSE, FALSE);
+  rack->procinfo = lv2_process_info_new (client_name, channels, FALSE, FALSE);
   if (!rack->procinfo) {
     g_free (rack);
     return NULL;
   }
 
   rack->plugin_mgr = g_lv2_plugin_mgr;
-  plugin_mgr2_set_plugins (rack->plugin_mgr, channels);
+  lv2_mgr_set_plugins (rack->plugin_mgr, channels);
 
   return rack;
 }
 
 
 void
-jack_rack_destroy (jack_rack_t * jack_rack)
+lv2_rack_destroy (lv2_rack_t * lv2_rack)
 {
-  process_quit (jack_rack->procinfo);
+  lv2_process_quit (lv2_rack->procinfo);
   // plugin_mgr is shared and global now, so we do not destroy it with each instance
-  // plugin_mgr2_destroy (jack_rack->plugin_mgr);
-  process_info_destroy (jack_rack->procinfo);
-  g_slist_free (jack_rack->saved_plugins);
-  g_free (jack_rack);
+  // lv2_mgr_destroy (lv2_rack->plugin_mgr);
+  lv2_process_info_destroy (lv2_rack->procinfo);
+  g_slist_free (lv2_rack->saved_plugins);
+  g_free (lv2_rack);
 }
 
-plugin2_t *
-jack_rack2_instantiate_plugin (jack_rack_t * jack_rack, plugin_desc_t * desc)
+lv2_plugin_t *
+lv2_rack_instantiate_plugin (lv2_rack_t * lv2_rack, lv2_plugin_desc_t * desc)
 {
-  plugin2_t * plugin;
+  lv2_plugin_t * plugin;
   
   /* check whether or not the plugin is RT capablex and confirm with the user if it isn't */
   if (!LADSPA_IS_HARD_RT_CAPABLE(desc->properties)) {
@@ -89,11 +89,11 @@ jack_rack2_instantiate_plugin (jack_rack_t * jack_rack, plugin_desc_t * desc)
   }
 
   /* create the plugin */
-  plugin = plugin2_new (desc, jack_rack);
+  plugin = lv2_plugin_new (desc, lv2_rack);
 
   if (!plugin) {
    mlt_log_error( NULL, "Error loading file plugin '%s' from file '%s'\n",
-               desc->name, desc->object_file);
+               desc->name, desc->uri);
   }
   
   return plugin;
@@ -101,23 +101,23 @@ jack_rack2_instantiate_plugin (jack_rack_t * jack_rack, plugin_desc_t * desc)
 
 
 void
-jack_rack_add_saved_plugin (jack_rack_t * jack_rack, saved_plugin_t * saved_plugin)
+lv2_rack_add_saved_plugin (lv2_rack_t * lv2_rack, saved_plugin_t * saved_plugin)
 {
-  plugin2_t * plugin = jack_rack2_instantiate_plugin (jack_rack, saved_plugin->settings->desc);
+  lv2_plugin_t * plugin = lv2_rack_instantiate_plugin (lv2_rack, saved_plugin->settings->desc);
   if (!plugin)
     {
       mlt_log_warning( NULL, "%s: could not instantiate object file '%s'\n",
-                       __FUNCTION__, saved_plugin->settings->desc->object_file);
+                       __FUNCTION__, saved_plugin->settings->desc->uri);
       return;
     }
-  jack_rack->saved_plugins = g_slist_append (jack_rack->saved_plugins, saved_plugin);
-  process_add_plugin (jack_rack->procinfo, plugin);
-  jack_rack_add_plugin (jack_rack, plugin);
+  lv2_rack->saved_plugins = g_slist_append (lv2_rack->saved_plugins, saved_plugin);
+  process_add_plugin (lv2_rack->procinfo, plugin);
+  lv2_rack_add_plugin (lv2_rack, plugin);
 }
 
 
 void
-jack_rack_add_plugin (jack_rack_t * jack_rack, plugin2_t * plugin)
+lv2_rack_add_plugin (lv2_rack_t * lv2_rack, lv2_plugin_t * plugin)
 {
   saved_plugin_t * saved_plugin = NULL;
   GSList * list;
@@ -126,14 +126,14 @@ jack_rack_add_plugin (jack_rack_t * jack_rack, plugin2_t * plugin)
   guint copy;
   
   /* see if there's any saved settings that match the plugin id */
-  for (list = jack_rack->saved_plugins; list; list = g_slist_next (list))
+  for (list = lv2_rack->saved_plugins; list; list = g_slist_next (list))
     {
       saved_plugin = list->data;
       
       if (saved_plugin->settings->desc->id == plugin->desc->id)
         {
           /* process the settings! */
-          jack_rack->saved_plugins = g_slist_remove (jack_rack->saved_plugins, saved_plugin);
+          lv2_rack->saved_plugins = g_slist_remove (lv2_rack->saved_plugins, saved_plugin);
           break;
         }
       saved_plugin = NULL;
@@ -143,21 +143,21 @@ jack_rack_add_plugin (jack_rack_t * jack_rack, plugin2_t * plugin)
 	return;
 
   /* initialize plugin parameters */
-  plugin->enabled = settings_get_enabled (saved_plugin->settings);
-  plugin->wet_dry_enabled = settings_get_wet_dry_enabled (saved_plugin->settings);
+  plugin->enabled = lv2_settings_get_enabled (saved_plugin->settings);
+  plugin->wet_dry_enabled = lv2_settings_get_wet_dry_enabled (saved_plugin->settings);
 	
   for (control = 0; control < saved_plugin->settings->desc->control_port_count; control++)
     for (copy = 0; copy < plugin->copies; copy++)
       {
-        value = settings_get_control_value (saved_plugin->settings, copy, control);
+        value = lv2_settings_get_control_value (saved_plugin->settings, copy, control);
         plugin->holders[copy].control_memory[control] = value;
 //mlt_log_debug( NULL, "setting control value %s (%d) = %f\n", saved_plugin->settings->desc->port_names[control], copy, value);
 //        lff_write (plugin->holders[copy].ui_control_fifos + control, &value);
       }
   if (plugin->wet_dry_enabled)
-    for (channel = 0; channel < jack_rack->channels; channel++)
+    for (channel = 0; channel < lv2_rack->channels; channel++)
       {
-        value = settings_get_wet_dry_value (saved_plugin->settings, channel);
+        value = lv2_settings_get_wet_dry_value (saved_plugin->settings, channel);
         plugin->wet_dry_values[channel] = value;
 //mlt_log_debug( NULL, "setting wet/dry value %d = %f\n", channel, value);
 //        lff_write (plugin->wet_dry_fifos + channel, &value);
@@ -166,11 +166,11 @@ jack_rack_add_plugin (jack_rack_t * jack_rack, plugin2_t * plugin)
 
 
 static void
-saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, saved_plugin_t * saved_plugin,
+saved_rack_parse_plugin (lv2_rack_t * lv2_rack, saved_rack_t * saved_rack, saved_plugin_t * saved_plugin,
                          const char * filename, xmlNodePtr plugin)
 {
-  plugin_desc_t * desc;
-  settings_t * settings = NULL;
+  lv2_plugin_desc_t * desc;
+  lv2_settings_t * settings = NULL;
   xmlNodePtr node;
   xmlNodePtr sub_node;
   xmlChar *content;
@@ -186,7 +186,7 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
         {
           content = xmlNodeGetContent (node);
 
-          desc = plugin_mgr2_get_any_desc (jack_rack->plugin_mgr, _s(content));
+          desc = lv2_mgr_get_any_desc (lv2_rack->plugin_mgr, _s(content));
 
           if (!desc)
             {
@@ -197,24 +197,24 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
 
 	  xmlFree (content);
 
-          settings = settings_new (desc, saved_rack->channels, saved_rack->sample_rate);
+          settings = lv2_settings_new (desc, saved_rack->channels, saved_rack->sample_rate);
         }
       else if (xmlStrcmp (node->name, _x("enabled")) == 0)
         {
           content = xmlNodeGetContent (node);
-          settings_set_enabled (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
+          lv2_settings_set_enabled (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
           xmlFree (content);
         }
       else if (xmlStrcmp (node->name, _x("wet_dry_enabled")) == 0)
         {
           content = xmlNodeGetContent (node);
-          settings_set_wet_dry_enabled (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
+          lv2_settings_set_wet_dry_enabled (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
           xmlFree (content);
         }
       else if (xmlStrcmp (node->name, _x("wet_dry_locked")) == 0)
         {
           content = xmlNodeGetContent (node);
-          settings_set_wet_dry_locked (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
+          lv2_settings_set_wet_dry_locked (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
           xmlFree (content);
         }
       else if (xmlStrcmp (node->name, _x("wet_dry_values")) == 0)
@@ -226,7 +226,7 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
               if (xmlStrcmp (sub_node->name, _x("value")) == 0)
                 {
                   content = xmlNodeGetContent (sub_node);
-                  settings_set_wet_dry_value (settings, channel, strtod (_s(content), NULL));
+                  lv2_settings_set_wet_dry_value (settings, channel, strtod (_s(content), NULL));
                   xmlFree (content);
                   
                   channel++;
@@ -236,7 +236,7 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
       else if (xmlStrcmp (node->name, _x("lockall")) == 0)
         {
           content = xmlNodeGetContent (node);
-          settings_set_lock_all (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
+          lv2_settings_set_lock_all (settings, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
           xmlFree (content);
         }
       else if (xmlStrcmp (node->name, _x("controlrow")) == 0)
@@ -248,13 +248,13 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
               if (xmlStrcmp (sub_node->name, _x("lock")) == 0)
                 {
                   content = xmlNodeGetContent (sub_node);
-                  settings_set_lock (settings, control, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
+                  lv2_settings_set_lock (settings, control, xmlStrcmp (content, _x("true")) == 0 ? TRUE : FALSE);
                   xmlFree (content);
                 }
               else if (xmlStrcmp (sub_node->name, _x("value")) == 0)
                 {
                   content = xmlNodeGetContent (sub_node);
-                  settings_set_control_value (settings, copy, control, strtod (_s(content), NULL));
+                  lv2_settings_set_control_value (settings, copy, control, strtod (_s(content), NULL));
                   xmlFree (content);
                   copy++;
                 }
@@ -269,7 +269,7 @@ saved_rack_parse_plugin (jack_rack_t * jack_rack, saved_rack_t * saved_rack, sav
 }
 
 static void
-saved_rack_parse_jackrack (jack_rack_t * jack_rack, saved_rack_t * saved_rack, const char * filename, xmlNodePtr jackrack)
+saved_rack_parse_lv2rack (lv2_rack_t * lv2_rack, saved_rack_t * saved_rack, const char * filename, xmlNodePtr lv2rack)
 {
   xmlNodePtr node;
   xmlChar *content;
@@ -279,7 +279,7 @@ saved_rack_parse_jackrack (jack_rack_t * jack_rack, saved_rack_t * saved_rack, c
   xmlMemGet( &xmlFree, NULL, NULL, NULL);
 #endif
 
-  for (node = jackrack->children; node; node = node->next)
+  for (node = lv2rack->children; node; node = node->next)
     {
       if (xmlStrcmp (node->name, _x("channels")) == 0)
         {
@@ -297,13 +297,13 @@ saved_rack_parse_jackrack (jack_rack_t * jack_rack, saved_rack_t * saved_rack, c
         {
           saved_plugin = g_malloc0 (sizeof (saved_plugin_t));
           saved_rack->plugins = g_slist_append (saved_rack->plugins, saved_plugin);
-          saved_rack_parse_plugin (jack_rack, saved_rack, saved_plugin, filename, node);
+          saved_rack_parse_plugin (lv2_rack, saved_rack, saved_plugin, filename, node);
         }
     }
 }
 
 static saved_rack_t *
-saved_rack_new (jack_rack_t * jack_rack, const char * filename, xmlDocPtr doc)
+saved_rack_new (lv2_rack_t * lv2_rack, const char * filename, xmlDocPtr doc)
 {
   xmlNodePtr node;
   saved_rack_t *saved_rack;
@@ -316,8 +316,8 @@ saved_rack_new (jack_rack_t * jack_rack, const char * filename, xmlDocPtr doc)
   
   for (node = doc->children; node; node = node->next)
     {
-      if (xmlStrcmp (node->name, _x("jackrack")) == 0)
-        saved_rack_parse_jackrack (jack_rack, saved_rack, filename, node);
+      if (xmlStrcmp (node->name, _x("lv2rack")) == 0)
+        saved_rack_parse_lv2rack (lv2_rack, saved_rack, filename, node);
     }
   
   return saved_rack;
@@ -329,14 +329,14 @@ saved_rack_destroy (saved_rack_t * saved_rack)
   GSList * list;
   
   for (list = saved_rack->plugins; list; list = g_slist_next (list))
-    settings_destroy (((saved_plugin_t *) list->data)->settings);
+    lv2_settings_destroy (((saved_plugin_t *) list->data)->settings);
   g_slist_free (saved_rack->plugins);
   g_free (saved_rack);
 }
 
 
 int
-jack_rack_open_file (jack_rack_t * jack_rack, const char * filename)
+lv2_rack_open_file (lv2_rack_t * lv2_rack, const char * filename)
 {
   xmlDocPtr doc;
   saved_rack_t * saved_rack;
@@ -350,13 +350,13 @@ jack_rack_open_file (jack_rack_t * jack_rack, const char * filename)
       return 1;
     }
   
-  if (xmlStrcmp ( ((xmlDtdPtr)doc->children)->name, _x("jackrack")) != 0)
+  if (xmlStrcmp ( ((xmlDtdPtr)doc->children)->name, _x("lv2rack")) != 0)
     {
       mlt_log_error( NULL, _("The file '%s' is not a JACK Rack settings file\n"), filename);
       return 1;
     }
   
-  saved_rack = saved_rack_new (jack_rack, filename, doc);
+  saved_rack = saved_rack_new (lv2_rack, filename, doc);
   xmlFreeDoc (doc);
   
   if (!saved_rack)
@@ -366,9 +366,9 @@ jack_rack_open_file (jack_rack_t * jack_rack, const char * filename)
     {
       saved_plugin = list->data;
       
-      settings_set_sample_rate (saved_plugin->settings, sample_rate);
+      lv2_settings_set_sample_rate (saved_plugin->settings, lv2_sample_rate);
       
-      jack_rack_add_saved_plugin (jack_rack, saved_plugin);
+      lv2_rack_add_saved_plugin (lv2_rack, saved_plugin);
     }
   
   saved_rack_destroy (saved_rack);

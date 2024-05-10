@@ -32,45 +32,45 @@
 
 #define BUFFER_LEN 10000
 
-/** One-time initialization of jack rack.
+/** One-time initialization of lv2 rack.
 */
 
-static jack_rack_t *initialise_jack_rack2(mlt_properties properties, int channels)
+static lv2_rack_t *initialise_lv2_rack(mlt_properties properties, int channels)
 {
-    jack_rack_t *jackrack = NULL;
+    lv2_rack_t *lv2rack = NULL;
     //unsigned long plugin_id = mlt_properties_get_int64(properties, "_pluginid");
     char *plugin_id = NULL;
     plugin_id = mlt_properties_get(properties, "_pluginid");
 
-    // Start JackRack
+    // Start LV2Rack
     if (plugin_id) {
-        // Create JackRack without Jack client name so that it only uses LADSPA
-        jackrack = jack_rack2_new(NULL, channels);
+        // Create LV2Rack without Jack client name so that it only uses LV2
+        lv2rack = lv2_rack_new(NULL, channels);
         mlt_properties_set_data(properties,
-                                "_jackrack",
-                                jackrack,
+                                "_lv2rack",
+                                lv2rack,
                                 0,
-                                (mlt_destructor) jack_rack_destroy,
+                                (mlt_destructor) lv2_rack_destroy,
                                 NULL);
 
         // Load one LV2 plugin by its URI
-        plugin_desc_t *desc = plugin_mgr2_get_any_desc(jackrack->plugin_mgr, plugin_id);
-        plugin2_t *plugin;
+        lv2_plugin_desc_t *desc = lv2_mgr_get_any_desc(lv2rack->plugin_mgr, plugin_id);
+        lv2_plugin_t *plugin;
 
-        if (desc && (plugin = jack_rack2_instantiate_plugin(jackrack, desc))) {
+        if (desc && (plugin = lv2_rack_instantiate_plugin(lv2rack, desc))) {
             plugin->enabled = TRUE;
             plugin->wet_dry_enabled = FALSE;
-            process_add_plugin(jackrack->procinfo, plugin);
+            process_add_plugin(lv2rack->procinfo, plugin);
             mlt_properties_set_int(properties, "instances", plugin->copies);
         } else {
             mlt_log_error(properties, "failed to load plugin %s\n", plugin_id);
         }
     }
 
-    return jackrack;
+    return lv2rack;
 }
 
-static int producer2_get_audio(mlt_frame frame,
+static int producer_get_audio(mlt_frame frame,
                               void **buffer,
                               mlt_audio_format *format,
                               int *frequency,
@@ -86,22 +86,22 @@ static int producer2_get_audio(mlt_frame frame,
     LADSPA_Data **output_buffers = NULL;
     int i = 0;
 
-    // Initialize LADSPA if needed
-    jack_rack_t *jackrack = mlt_properties_get_data(producer_properties, "_jackrack", NULL);
-    if (!jackrack) {
-        sample_rate = *frequency; // global inside jack_rack
-        jackrack = initialise_jack_rack2(producer_properties, *channels);
+    // Initialize LV2 if needed
+    lv2_rack_t *lv2rack = mlt_properties_get_data(producer_properties, "_lv2rack", NULL);
+    if (!lv2rack) {
+        lv2_sample_rate = *frequency; // global inside lv2_rack
+        lv2rack = initialise_lv2_rack(producer_properties, *channels);
     }
 
-    if (jackrack) {
+    if (lv2rack) {
         // Correct the returns if necessary
         *samples = *samples <= 0 ? 1920 : *samples;
         *channels = *channels <= 0 ? 2 : *channels;
         *frequency = *frequency <= 0 ? 48000 : *frequency;
         *format = mlt_audio_float;
 
-        if (jackrack->procinfo && jackrack->procinfo->chain) {
-            plugin2_t *plugin = jackrack->procinfo->chain;
+        if (lv2rack->procinfo && lv2rack->procinfo->chain) {
+            lv2_plugin_t *plugin = lv2rack->procinfo->chain;
             LADSPA_Data value;
             int index, c;
             mlt_position position = mlt_frame_get_position(frame);
@@ -111,7 +111,6 @@ static int producer2_get_audio(mlt_frame frame,
                 // Apply the control port values
                 char key[20];
 		value = plugin->def_values[plugin->desc->control_port_indicies[index]];
-                //snprintf(key, sizeof(key), "%d", index);
 		snprintf(key, sizeof(key), "%d", (int) plugin->desc->control_port_indicies[index]);
 
                 if (mlt_properties_get(producer_properties, key))
@@ -130,14 +129,14 @@ static int producer2_get_audio(mlt_frame frame,
         // Allocate the buffer
         *buffer = mlt_pool_alloc(size);
 
-        // Initialize the LADSPA output buffer.
+        // Initialize the LV2 output buffer.
         output_buffers = mlt_pool_alloc(sizeof(LADSPA_Data *) * *channels);
         for (i = 0; i < *channels; i++) {
             output_buffers[i] = (LADSPA_Data *) *buffer + i * *samples;
         }
 
         // Do LV2 processing
-        process_ladspa(jackrack->procinfo, *samples, NULL, output_buffers);
+        process_lv2(lv2rack->procinfo, *samples, NULL, output_buffers);
         mlt_pool_release(output_buffers);
 
         // Set the buffer for destruction
@@ -146,11 +145,9 @@ static int producer2_get_audio(mlt_frame frame,
 	char *plugin_id = NULL;
 	plugin_id = mlt_properties_get (producer_properties, "_pluginid");
 
-        /* if (jackrack && jackrack->procinfo && jackrack->procinfo->chain
-               && mlt_properties_get_int64(producer_properties, "_pluginid")) { */
-	if (jackrack && jackrack->procinfo && jackrack->procinfo->chain
+	if (lv2rack && lv2rack->procinfo && lv2rack->procinfo->chain
             && plugin_id) {
-            plugin2_t *plugin = jackrack->procinfo->chain;
+            lv2_plugin_t *plugin = lv2rack->procinfo->chain;
             LADSPA_Data value;
             int i, c;
             for (i = 0; i < plugin->desc->status_port_count; i++) {
@@ -169,7 +166,7 @@ static int producer2_get_audio(mlt_frame frame,
     return 0;
 }
 
-static int producer2_get_frame(mlt_producer producer, mlt_frame_ptr frame, int index)
+static int producer_get_frame(mlt_producer producer, mlt_frame_ptr frame, int index)
 {
     // Generate a frame
     *frame = mlt_frame_init(MLT_PRODUCER_SERVICE(producer));
@@ -186,7 +183,7 @@ static int producer2_get_frame(mlt_producer producer, mlt_frame_ptr frame, int i
         mlt_properties_set_data(frame_properties, "_producer_lv2", producer, 0, NULL, NULL);
 
         // Push the get_audio method
-        mlt_frame_push_audio(*frame, producer2_get_audio);
+        mlt_frame_push_audio(*frame, producer_get_audio);
     }
 
     // Calculate the next time code
@@ -198,7 +195,7 @@ static int producer2_get_frame(mlt_producer producer, mlt_frame_ptr frame, int i
 /** Destructor for the producer.
 */
 
-static void producer2_close(mlt_producer producer)
+static void producer_close(mlt_producer producer)
 {
     producer->close = NULL;
     mlt_producer_close(producer);
@@ -208,7 +205,7 @@ static void producer2_close(mlt_producer producer)
 /** Constructor for the producer.
 */
 
-mlt_producer producer_ladspa2_init(mlt_profile profile,
+mlt_producer producer_lv2_init(mlt_profile profile,
                                   mlt_service_type type,
                                   const char *id,
                                   char *arg)
@@ -219,8 +216,8 @@ mlt_producer producer_ladspa2_init(mlt_profile profile,
     if (producer != NULL) {
         mlt_properties properties = MLT_PRODUCER_PROPERTIES(producer);
 
-        producer->get_frame = producer2_get_frame;
-        producer->close = (mlt_destructor) producer2_close;
+        producer->get_frame = producer_get_frame;
+        producer->close = (mlt_destructor) producer_close;
 
         // Save the plugin ID.
         if (!strncmp(id, "lv2.", 4)) {

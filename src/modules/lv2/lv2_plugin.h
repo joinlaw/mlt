@@ -22,8 +22,8 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#ifndef __JR_PLUGIN_H__
-#define __JR_PLUGIN_H__
+#ifndef __LV2_PLUGIN_H__
+#define __LV2_PLUGIN_H__
 
 #include <glib.h>
 #include <ladspa.h>
@@ -32,13 +32,13 @@
 #include <jack/jack.h>
 #endif
 
-#include "process.h"
-#include "plugin_desc.h"
+#include "lv2_process.h"
+#include "lv2_plugin_desc.h"
 
-typedef struct _ladspa2_holder ladspa2_holder_t;
-typedef struct _plugin2 plugin2_t;
+typedef struct _lv2_holder lv2_holder_t;
+typedef struct _lv2_plugin lv2_plugin_t;
 
-struct _ladspa2_holder
+struct _lv2_holder
 {
   LilvInstance *instance;
   lff_t * ui_control_fifos;
@@ -50,14 +50,13 @@ struct _ladspa2_holder
 #endif
 };
 
-struct _plugin2
+struct _lv2_plugin
 {
-  plugin_desc_t *            desc;
+  lv2_plugin_desc_t *        desc;
   gint                       enabled;
 
   gint                       copies;
-  /* LilvInstance* instead of LADSPA_Handle inside */
-  ladspa2_holder_t *          holders;
+  lv2_holder_t *             holders;
   LADSPA_Data **             audio_input_memory;
   LADSPA_Data **             audio_output_memory;
 
@@ -67,35 +66,31 @@ struct _plugin2
   /* 1.0 = all wet, 0.0 = all dry, 0.5 = 50% wet/50% dry */
   LADSPA_Data *              wet_dry_values;
   lff_t *                    wet_dry_fifos;
-  
-  /* plugin_t *                 next;
-     plugin_t *                 prev; */
-  plugin2_t *                 next;
-  plugin2_t *                 prev;
 
-  LilvNode                   *lv2_plugin_uri;
-  LilvPlugin                 *lv2_plugin;
-  void *                     dl_handle;
-  struct _jack_rack *        jack_rack;
-  
+  lv2_plugin_t *                next;
+  lv2_plugin_t *                prev;
+
+  LilvNode *                 lv2_plugin_uri;
+  LilvPlugin *               lv2_plugin;
+  struct _lv2_rack *         lv2_rack;
 };
 
 
-void       process_add_plugin            (process_info_t *, plugin2_t *plugin);
-plugin2_t * process_remove_plugin         (process_info_t *, plugin2_t *plugin);
-void       process_ablise_plugin         (process_info_t *, plugin2_t *plugin, gboolean able);
-void       process_ablise_plugin_wet_dry (process_info_t *, plugin2_t *plugin, gboolean enable);
-void       process_move_plugin           (process_info_t *, plugin2_t *plugin, gint up);
-plugin2_t * process_change_plugin         (process_info_t *, plugin2_t *plugin, plugin2_t * new_plugin);
+void           process_add_plugin            (lv2_process_info_t *, lv2_plugin_t *plugin);
+lv2_plugin_t * process_remove_plugin         (lv2_process_info_t *, lv2_plugin_t *plugin);
+void           process_ablise_plugin         (lv2_process_info_t *, lv2_plugin_t *plugin, gboolean able);
+void           process_ablise_plugin_wet_dry (lv2_process_info_t *, lv2_plugin_t *plugin, gboolean enable);
+void           process_move_plugin           (lv2_process_info_t *, lv2_plugin_t *plugin, gint up);
+lv2_plugin_t * process_change_plugin         (lv2_process_info_t *, lv2_plugin_t *plugin, lv2_plugin_t * new_plugin);
 
-struct _jack_rack;
+struct _lv2_rack;
 struct _ui;
 
-plugin2_t * plugin2_new (plugin_desc_t * plugin_desc, struct _jack_rack * jack_rack);
-void       plugin_destroy (plugin2_t * plugin);
+lv2_plugin_t * lv2_plugin_new (lv2_plugin_desc_t * plugin_desc, struct _lv2_rack * lv2_rack);
+void       lv2_plugin_destroy (lv2_plugin_t * plugin);
 
-void plugin2_connect_input_ports (plugin2_t * plugin, LADSPA_Data ** inputs);
-void plugin2_connect_output_ports (plugin2_t * plugin);
+void lv2_plugin_connect_input_ports (lv2_plugin_t * plugin, LADSPA_Data ** inputs);
+void lv2_plugin_connect_output_ports (lv2_plugin_t * plugin);
 
 
-#endif /* __JR_PLUGIN_H__ */
+#endif /* __LV2_PLUGIN_H__ */
