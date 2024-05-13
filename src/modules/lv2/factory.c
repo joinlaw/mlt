@@ -1,6 +1,6 @@
 /*
  * factory.c -- the factory method interfaces
- * Copyright (C) 2003-2022 Meltytech, LLC
+ * Copyright (C) 2024 Meltytech, LLC
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,7 +39,6 @@
 
 #include <lilv/lilv.h>
 
-#ifdef GPL
 #include "lv2_mgr.h"
 #include <ladspa.h>
 
@@ -99,8 +98,6 @@ static void add_port_to_metadata(mlt_properties p, lv2_plugin_desc_t *desc, int 
     mlt_properties_set(p, "animation", "yes");
 }
 
-#endif
-
 static mlt_properties metadata(mlt_service_type type, const char *id, char *data)
 {
     char file[PATH_MAX];
@@ -120,7 +117,6 @@ static mlt_properties metadata(mlt_service_type type, const char *id, char *data
     }
     mlt_properties result = mlt_properties_parse_yaml(file);
 
-#ifdef GPL
     if (!strncmp(id, "lv2.", 4)) {
         // Annotate the yaml properties with lv2 control port info.
       lv2_plugin_desc_t *desc = lv2_mgr_get_any_desc(g_lv2_plugin_mgr, (char *) &id[4]);
@@ -211,7 +207,6 @@ static mlt_properties metadata(mlt_service_type type, const char *id, char *data
             }
         }
     }
-#endif
 
     return result;
 }
@@ -219,7 +214,6 @@ static mlt_properties metadata(mlt_service_type type, const char *id, char *data
 MLT_REPOSITORY
 {
 
-#ifdef GPL
     GSList *list;
 
     g_lv2_plugin_mgr = lv2_mgr_new();
@@ -257,5 +251,4 @@ MLT_REPOSITORY
 
     MLT_REGISTER(mlt_service_filter_type, "lv2", filter_lv2_init);
     MLT_REGISTER_METADATA(mlt_service_filter_type, "lv2", metadata, "filter_lv2.yml");
-#endif
 }

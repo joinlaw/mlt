@@ -6,7 +6,7 @@ version: 1
 license: GPLv2
 language: en
 url: http://www.lv2.org/
-creator: Dan Dennedy
+creator: mr.fantastic <mrfantastic@firemail.cc>
 tags:
   - Audio
 description: Process audio using LV2 plugins.
