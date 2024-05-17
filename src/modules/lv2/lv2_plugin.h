@@ -60,8 +60,6 @@ struct _lv2_plugin
   LADSPA_Data **             audio_input_memory;
   LADSPA_Data **             audio_output_memory;
 
-  float *def_values, *min_values, *max_values;
-
   gboolean                   wet_dry_enabled;
   /* 1.0 = all wet, 0.0 = all dry, 0.5 = 50% wet/50% dry */
   LADSPA_Data *              wet_dry_values;

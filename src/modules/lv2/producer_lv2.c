@@ -110,7 +110,7 @@ static int producer_get_audio(mlt_frame frame,
             for (index = 0; index < plugin->desc->control_port_count; index++) {
                 // Apply the control port values
                 char key[20];
-		value = plugin->def_values[plugin->desc->control_port_indicies[index]];
+		value = plugin->desc->def_values[plugin->desc->control_port_indicies[index]];
 		snprintf(key, sizeof(key), "%d", (int) plugin->desc->control_port_indicies[index]);
 
                 if (mlt_properties_get(producer_properties, key))

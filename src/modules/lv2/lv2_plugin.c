@@ -406,17 +406,17 @@ lv2_plugin_init_holder (const lv2_plugin_t   *plugin,
     {
       lff_init (holder->ui_control_fifos + i, CONTROL_FIFO_SIZE, sizeof (LADSPA_Data));
 
-      if (!isnan (plugin->def_values[desc->control_port_indicies[i]]))
+      if (!isnan (plugin->desc->def_values[desc->control_port_indicies[i]]))
 	{
-	  holder->control_memory[i] = plugin->def_values[desc->control_port_indicies[i]];
+	  holder->control_memory[i] = plugin->desc->def_values[desc->control_port_indicies[i]];
 	}
-      else if (!isnan (plugin->min_values[desc->control_port_indicies[i]]))
+      else if (!isnan (plugin->desc->min_values[desc->control_port_indicies[i]]))
 	{
-	  holder->control_memory[i] = plugin->min_values[desc->control_port_indicies[i]];
+	  holder->control_memory[i] = plugin->desc->min_values[desc->control_port_indicies[i]];
 	}
-      else if (!isnan (plugin->max_values[desc->control_port_indicies[i]]))
+      else if (!isnan (plugin->desc->max_values[desc->control_port_indicies[i]]))
 	{
-	  holder->control_memory[i] = plugin->max_values[desc->control_port_indicies[i]];
+	  holder->control_memory[i] = plugin->desc->max_values[desc->control_port_indicies[i]];
 	}
       else
 	{
@@ -477,11 +477,6 @@ lv2_plugin_new (lv2_plugin_desc_t * desc, lv2_rack_t * lv2_rack)
       str_ptr = strchr(str_ptr, ':');
     }
 
-  plugin->def_values = g_malloc(lilv_plugin_get_num_ports(plugin->lv2_plugin) * sizeof (float));
-  plugin->min_values = g_malloc(lilv_plugin_get_num_ports(plugin->lv2_plugin) * sizeof (float));
-  plugin->max_values = g_malloc(lilv_plugin_get_num_ports(plugin->lv2_plugin) * sizeof (float));
-  lilv_plugin_get_port_ranges_float(plugin->lv2_plugin, plugin->min_values, plugin->max_values, plugin->def_values);
-
   /* create the instances */
   copies = lv2_plugin_desc_get_copies (desc, lv2_rack->channels);
   instances = g_malloc (sizeof (LADSPA_Handle) * copies);
@@ -532,8 +527,7 @@ lv2_plugin_destroy (lv2_plugin_t * plugin)
   /* destroy holders */
   for (i = 0; i < plugin->copies; i++)
     {
-      //if (plugin->descriptor->deactivate)
-	lilv_instance_deactivate(plugin->holders[i].instance);
+      lilv_instance_deactivate(plugin->holders[i].instance);
       
       if (plugin->desc->control_port_count > 0)
         {

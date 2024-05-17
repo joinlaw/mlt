@@ -39,7 +39,7 @@ lv2_settings_set_to_default (lv2_settings_t * settings, guint32 sample_rate)
   
   for (control = 0; control < settings->desc->control_port_count; control++)
     {
-      value = lv2_plugin_desc_get_default_control_value (settings->desc, control, sample_rate);
+      value = settings->desc->def_values[settings->desc->control_port_indicies[control]];
 
       for (copy = 0; copy < settings->copies; copy++)
         {

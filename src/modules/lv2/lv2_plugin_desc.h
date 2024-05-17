@@ -76,6 +76,8 @@ struct _lv2_plugin_desc
   unsigned long            status_port_count;
   unsigned long *          status_port_indicies;
 
+  float *def_values, *min_values, *max_values;
+
   gboolean                 has_input;
 };
 
@@ -94,7 +96,6 @@ void lv2_plugin_desc_set_properties  (lv2_plugin_desc_t * pd, LADSPA_Properties 
 
 struct _lv2_plugin * lv2_plugin_desc_instantiate (lv2_plugin_desc_t * pd);
 
-LADSPA_Data lv2_plugin_desc_get_default_control_value (lv2_plugin_desc_t * pd, unsigned long port_index, guint32 sample_rate);
 LADSPA_Data lv2_plugin_desc_change_control_value (lv2_plugin_desc_t *, unsigned long, LADSPA_Data, guint32, guint32);
 
 gint lv2_plugin_desc_get_copies (lv2_plugin_desc_t * pd, unsigned long rack_channels);

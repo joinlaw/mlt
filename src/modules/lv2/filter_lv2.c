@@ -186,7 +186,7 @@ static int lv2_get_audio(mlt_frame frame,
         for (i = 0; i < plugin->desc->control_port_count; i++) {
             // Apply the control port values
             char key[20];
-	    value = plugin->def_values[plugin->desc->control_port_indicies[i]];
+	    value = plugin->desc->def_values[plugin->desc->control_port_indicies[i]];
 	    snprintf(key, sizeof(key), "%d", (int) plugin->desc->control_port_indicies[i]);
 
             if (mlt_properties_get(filter_properties, key))

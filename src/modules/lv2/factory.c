@@ -55,43 +55,44 @@ lv2_mgr_t *g_lv2_plugin_mgr = NULL;
 
 static void add_port_to_metadata(mlt_properties p, lv2_plugin_desc_t *desc, int j)
 {
-    LADSPA_Data sample_rate = 48000;
     LADSPA_PortRangeHintDescriptor hint_descriptor = desc->port_range_hints[j].HintDescriptor;
 
     mlt_properties_set(p, "title", desc->port_names[j]);
     if (LADSPA_IS_HINT_INTEGER(hint_descriptor)) {
-        mlt_properties_set(p, "type", "integer");
-        mlt_properties_set_int(p, 
-                               "default",
-                               lv2_plugin_desc_get_default_control_value(desc, j, sample_rate));
+      mlt_properties_set(p, "type", "integer");
+      mlt_properties_set_int(p, 
+			     "default",
+			     (int) desc->def_values[j]);
+      mlt_properties_set_double(p,
+				"minimum",
+				(int) desc->min_values[j]);
+      mlt_properties_set_double(p,
+				"maximum",
+				(int) desc->max_values[j]);
     } else if (LADSPA_IS_HINT_TOGGLED(hint_descriptor)) {
-        mlt_properties_set(p, "type", "boolean");
-        mlt_properties_set_int(p,
-                               "default",
-                               lv2_plugin_desc_get_default_control_value(desc, j, sample_rate));
+      mlt_properties_set(p, "type", "boolean");
+      mlt_properties_set_int(p,
+			     "default",
+			     desc->def_values[j]);
     } else {
-        mlt_properties_set(p, "type", "float");
-        mlt_properties_set_double(p,
-                                  "default",
-                                  lv2_plugin_desc_get_default_control_value(desc, j, sample_rate));
+      mlt_properties_set(p, "type", "float");
+      mlt_properties_set_double(p,
+				"default",
+				desc->def_values[j]);
+      mlt_properties_set_double(p,
+				"minimum",
+				desc->min_values[j]);
+      mlt_properties_set_double(p,
+				"maximum",
+				desc->max_values[j]);
+	
     }
-    /* set upper and lower, possibly adjusted to the sample rate */
-    if (LADSPA_IS_HINT_BOUNDED_BELOW(hint_descriptor)) {
-        LADSPA_Data lower = desc->port_range_hints[j].LowerBound;
-        if (LADSPA_IS_HINT_SAMPLE_RATE(hint_descriptor))
-            lower *= sample_rate;
-        if (LADSPA_IS_HINT_LOGARITHMIC(hint_descriptor)) {
-            if (lower < FLT_EPSILON)
-                lower = FLT_EPSILON;
-        }
-        mlt_properties_set_double(p, "minimum", lower);
-    }
-    if (LADSPA_IS_HINT_BOUNDED_ABOVE(hint_descriptor)) {
-        LADSPA_Data upper = desc->port_range_hints[j].UpperBound;
-        if (LADSPA_IS_HINT_SAMPLE_RATE(hint_descriptor))
-            upper *= sample_rate;
-        mlt_properties_set_double(p, "maximum", upper);
-    }
+
+    if (LADSPA_IS_HINT_ENUMERATION(hint_descriptor))
+      {
+	/* WIP */
+      }
+
     if (LADSPA_IS_HINT_LOGARITHMIC(hint_descriptor))
         mlt_properties_set(p, "scale", "log");
     mlt_properties_set(p, "mutable", "yes");

@@ -31,6 +31,8 @@
 
 #define LADSPA_PORT_ATOM   10
 #define LADSPA_IS_PORT_ATOM(x)   ((x) & LADSPA_PORT_ATOM)
+#define LADSPA_HINT_ENUMERATION   LADSPA_HINT_DEFAULT_LOW
+#define LADSPA_IS_HINT_ENUMERATION(x)     ((x) & LADSPA_HINT_ENUMERATION)
 
 #define set_string_property(property, value) \
   \
@@ -47,6 +49,10 @@ extern LilvNode *lv2_output_class;
 extern LilvNode *lv2_audio_class;
 extern LilvNode *lv2_control_class;
 extern LilvNode *lv2_atom_class;
+extern LilvNode *lv2_integer_property;
+extern LilvNode *lv2_logarithmic_property;
+extern LilvNode *lv2_toggled_property;
+extern LilvNode *lv2_enumeration_property;
 
 void
 lv2_plugin_desc_set_ports (lv2_plugin_desc_t * pd,
@@ -109,6 +115,9 @@ plugin_desc_free_ports (lv2_plugin_desc_t * pd)
 static void
 plugin_desc_free (lv2_plugin_desc_t * pd)
 {
+  g_free (pd->def_values);
+  g_free (pd->min_values);
+  g_free (pd->max_values);
   lv2_plugin_desc_set_uri (pd, NULL);
   lv2_plugin_desc_set_name        (pd, NULL);
   lv2_plugin_desc_set_maker       (pd, NULL);
@@ -163,7 +172,9 @@ lv2_plugin_desc_new_with_descriptor (const char * uri,
   LADSPA_PortDescriptor *port_descriptors = calloc (PortCount, sizeof (LADSPA_PortDescriptor));
   LADSPA_PortRangeHint *PortRangeHints = calloc (PortCount, sizeof (LADSPA_PortRangeHint));
 
-  float *min_values = calloc (PortCount, sizeof (LADSPA_Data)), *max_values = calloc (PortCount, sizeof (LADSPA_Data)), *def_values = calloc (PortCount, sizeof (LADSPA_Data));
+  pd->min_values = calloc (PortCount, sizeof (LADSPA_Data)), pd->max_values = calloc (PortCount, sizeof (LADSPA_Data)), pd->def_values = calloc (PortCount, sizeof (LADSPA_Data));
+
+  lilv_plugin_get_port_ranges_float(plugin, pd->min_values, pd->max_values, pd->def_values);
 
   int i;
   for (i = 0; i < PortCount; ++i)
@@ -191,8 +202,28 @@ lv2_plugin_desc_new_with_descriptor (const char * uri,
 	  port_descriptors[i] |= LADSPA_PORT_ATOM;
 	}
 
-      PortRangeHints[i].LowerBound = min_values[i];
-      PortRangeHints[i].UpperBound = max_values[i];
+      if (lilv_port_has_property(plugin, port, lv2_integer_property))
+	{
+	  PortRangeHints[i].HintDescriptor |= LADSPA_HINT_INTEGER;
+	}
+
+      if (lilv_port_has_property(plugin, port, lv2_logarithmic_property))
+	{
+	  PortRangeHints[i].HintDescriptor |= LADSPA_HINT_LOGARITHMIC;
+	}
+
+      if (lilv_port_has_property(plugin, port, lv2_toggled_property))
+	{
+	  PortRangeHints[i].HintDescriptor |= LADSPA_HINT_TOGGLED;
+	}
+
+      if (lilv_port_has_property(plugin, port, lv2_enumeration_property))
+	{
+	  PortRangeHints[i].HintDescriptor |= LADSPA_HINT_ENUMERATION;
+	}
+
+      PortRangeHints[i].LowerBound = pd->min_values[i];
+      PortRangeHints[i].UpperBound = pd->max_values[i];
 
       PortNames[i] = (char *) lilv_node_as_string (lilv_port_get_name(plugin, port));
     }
@@ -205,9 +236,6 @@ lv2_plugin_desc_new_with_descriptor (const char * uri,
 
   free (PortNames);
   free (port_descriptors);
-  free (min_values);
-  free (max_values);
-  free (def_values);
 
   return pd;
 }
@@ -388,106 +416,6 @@ lv2_plugin_desc_set_ports (lv2_plugin_desc_t * pd,
     pd->port_names[i] = g_strdup (port_names[i]);
   
   lv2_plugin_desc_set_port_counts (pd);
-}
-
-LADSPA_Data
-lv2_plugin_desc_get_default_control_value (lv2_plugin_desc_t * pd, unsigned long port_index, guint32 sample_rate)
-{
-  LADSPA_Data upper, lower;
-  LADSPA_PortRangeHintDescriptor hint_descriptor;
-  
-  hint_descriptor = pd->port_range_hints[port_index].HintDescriptor;
-  
-  /* set upper and lower, possibly adjusted to the sample rate */
-  if (LADSPA_IS_HINT_SAMPLE_RATE(hint_descriptor)) {
-    upper = pd->port_range_hints[port_index].UpperBound * (LADSPA_Data) sample_rate;
-    lower = pd->port_range_hints[port_index].LowerBound * (LADSPA_Data) sample_rate;
-  } else {
-    upper = pd->port_range_hints[port_index].UpperBound;
-    lower = pd->port_range_hints[port_index].LowerBound;
-  }
-  
-  if (LADSPA_IS_HINT_LOGARITHMIC(hint_descriptor))
-    {
-      if (lower < FLT_EPSILON)
-        lower = FLT_EPSILON;
-    }
-    
-
-  if (LADSPA_IS_HINT_HAS_DEFAULT(hint_descriptor)) {
-      
-           if (LADSPA_IS_HINT_DEFAULT_MINIMUM(hint_descriptor)) {
-    
-      return lower;
-       
-    } else if (LADSPA_IS_HINT_DEFAULT_LOW(hint_descriptor)) {
-        
-      if (LADSPA_IS_HINT_LOGARITHMIC(hint_descriptor)) {
-        return exp(log(lower) * 0.75 + log(upper) * 0.25);
-      } else {
-        return lower * 0.75 + upper * 0.25;
-      }
-
-    } else if (LADSPA_IS_HINT_DEFAULT_MIDDLE(hint_descriptor)) {
-        
-      if (LADSPA_IS_HINT_LOGARITHMIC(hint_descriptor)) {
-        return exp(log(lower) * 0.5 + log(upper) * 0.5);
-      } else {
-        return lower * 0.5 + upper * 0.5;
-      }
-
-    } else if (LADSPA_IS_HINT_DEFAULT_HIGH(hint_descriptor)) {
-      
-      if (LADSPA_IS_HINT_LOGARITHMIC(hint_descriptor)) {
-        return exp(log(lower) * 0.25 + log(upper) * 0.75);
-      } else {
-        return lower * 0.25 + upper * 0.75;
-      }
-      
-    } else if (LADSPA_IS_HINT_DEFAULT_MAXIMUM(hint_descriptor)) {
-      
-      return upper;
-    
-    } else if (LADSPA_IS_HINT_DEFAULT_0(hint_descriptor)) {
-      
-      return 0.0;
-      
-    } else if (LADSPA_IS_HINT_DEFAULT_1(hint_descriptor)) {
-      
-      if (LADSPA_IS_HINT_SAMPLE_RATE(hint_descriptor)) {
-        return (LADSPA_Data) sample_rate;
-      } else {
-        return 1.0;
-      }
-      
-    } else if (LADSPA_IS_HINT_DEFAULT_100(hint_descriptor)) {
-      
-      if (LADSPA_IS_HINT_SAMPLE_RATE(hint_descriptor)) {
-        return 100.0 * (LADSPA_Data) sample_rate;
-      } else {
-        return 100.0;
-      }
-      
-    } else if (LADSPA_IS_HINT_DEFAULT_440(hint_descriptor)) {
-      
-      if (LADSPA_IS_HINT_SAMPLE_RATE(hint_descriptor)) {
-        return 440.0 * (LADSPA_Data) sample_rate;
-      } else {
-        return 440.0;
-      }
-      
-    }  
-      
-  } else { /* try and find a reasonable default */
-        
-           if (LADSPA_IS_HINT_BOUNDED_BELOW(hint_descriptor)) {
-      return lower;
-    } else if (LADSPA_IS_HINT_BOUNDED_ABOVE(hint_descriptor)) {
-      return upper;
-    }
-  }
-
-  return 0.0;
 }
 
 LADSPA_Data

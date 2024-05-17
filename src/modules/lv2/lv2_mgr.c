@@ -55,6 +55,7 @@
 #include <lv2/options/options.h>
 #include "lv2/buf-size/buf-size.h"
 #include "lv2/parameters/parameters.h"
+#include <lv2/port-props/port-props.h>
 
 #include "lv2_urid_helper.h"
 
@@ -63,6 +64,10 @@ LilvNode *lv2_output_class;
 LilvNode *lv2_audio_class;
 LilvNode *lv2_control_class;
 LilvNode *lv2_atom_class;
+LilvNode *lv2_integer_property;
+LilvNode *lv2_logarithmic_property;
+LilvNode *lv2_toggled_property;
+LilvNode *lv2_enumeration_property;
 
 static LV2_URID urid_atom_Float;
 static LV2_URID urid_atom_Int;
@@ -174,11 +179,15 @@ lv2_mgr_new ()
   lilv_world_load_all (pm->lv2_world);
   pm->plugin_list = (LilvPlugins *) lilv_world_get_all_plugins (pm->lv2_world);
 
-  lv2_input_class  = lilv_new_uri(pm->lv2_world, LILV_URI_INPUT_PORT);
-  lv2_output_class  = lilv_new_uri(pm->lv2_world, LILV_URI_OUTPUT_PORT);
-  lv2_audio_class  = lilv_new_uri(pm->lv2_world, LILV_URI_AUDIO_PORT);
-  lv2_control_class  = lilv_new_uri(pm->lv2_world, LILV_URI_CONTROL_PORT);
-  lv2_atom_class = lilv_new_uri(pm->lv2_world, LV2_ATOM__AtomPort);
+  lv2_input_class  = lilv_new_uri (pm->lv2_world, LILV_URI_INPUT_PORT);
+  lv2_output_class  = lilv_new_uri (pm->lv2_world, LILV_URI_OUTPUT_PORT);
+  lv2_audio_class  = lilv_new_uri (pm->lv2_world, LILV_URI_AUDIO_PORT);
+  lv2_control_class  = lilv_new_uri (pm->lv2_world, LILV_URI_CONTROL_PORT);
+  lv2_atom_class = lilv_new_uri (pm->lv2_world, LV2_ATOM__AtomPort);
+  lv2_integer_property = lilv_new_uri (pm->lv2_world, LV2_CORE__integer);
+  lv2_logarithmic_property = lilv_new_uri (pm->lv2_world, LV2_PORT_PROPS__logarithmic);
+  lv2_toggled_property = lilv_new_uri (pm->lv2_world, LV2_CORE__toggled);
+  lv2_enumeration_property = lilv_new_uri (pm->lv2_world, LV2_CORE__enumeration);
 
   uri_table_init(&uri_table);
 
@@ -264,7 +273,18 @@ lv2_mgr_destroy (lv2_mgr_t * plugin_mgr)
   
   g_slist_free (plugin_mgr->plugins);
   g_slist_free (plugin_mgr->all_plugins);
-  mlt_properties_close(plugin_mgr->blacklist);
+  mlt_properties_close (plugin_mgr->blacklist);
+
+  lilv_node_free (lv2_input_class);
+  lilv_node_free (lv2_output_class);
+  lilv_node_free (lv2_audio_class);
+  lilv_node_free (lv2_control_class);
+  lilv_node_free (lv2_atom_class);
+  lilv_node_free (lv2_integer_property);
+  lilv_node_free (lv2_logarithmic_property);
+  lilv_node_free (lv2_toggled_property);
+  lilv_node_free (lv2_enumeration_property);
+
   lilv_world_free (plugin_mgr->lv2_world);
   free (plugin_mgr);
 }
