@@ -259,6 +259,11 @@ endif()
 
 if(MOD_OPENFX)
   pkg_check_modules(glib IMPORTED_TARGET glib-2.0)
+  # Disable module of openfx git submodule is not initialized because it is containing the standard openfx header files
+  if(NOT EXISTS "${CMAKE_SOURCE_DIR}/src/modules/openfx/openfx/include")
+    message("Cannot enable openfx module. openfx git submodule not initialize")
+    set(MOD_OPENFX OFF)
+  endif()
 endif()
 
 if(USE_LV2)
@@ -469,6 +474,7 @@ if(CLANG_FORMAT)
     file(GLOB_RECURSE FORMAT_FILES "src/*.h" "src/*.c" "src/*.cpp")
     # exclude 3rd party source from format checking
     list(FILTER FORMAT_FILES EXCLUDE REGEX "/.*/glaxnimate/glaxnimate/")
+    list(FILTER FORMAT_FILES EXCLUDE REGEX "/.*/openfx/openfx/")
     list(FILTER FORMAT_FILES EXCLUDE REGEX "/.*autogen")
     list(FILTER FORMAT_FILES EXCLUDE REGEX "/.*/avformat/mmx.h")
     list(FILTER FORMAT_FILES EXCLUDE REGEX "/.*/decklink/darwin")

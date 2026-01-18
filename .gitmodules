@@ -2,3 +2,6 @@
 	path = src/modules/glaxnimate/glaxnimate
 	url = https://gitlab.com/mattbas/glaxnimate.git
 	ignore = dirty
+[submodule "src/modules/openfx/openfx"]
+	path = src/modules/openfx/openfx
+	url = https://github.com/AcademySoftwareFoundation/openfx.git
